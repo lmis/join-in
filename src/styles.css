@@ -2,3 +2,9 @@
   font-family: sans-serif;
   text-align: center;
 }
+
+.Canvas {
+  border: solid;
+  border-color: #222888;
+  border-width: 1px;
+}
