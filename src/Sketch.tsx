@@ -8,6 +8,10 @@ import React, {
   useCallback
 } from "react";
 
+interface Props {
+  videoRef: React.RefObject<HTMLVideoElement>;
+}
+
 const ballRadius = 30;
 
 const useContext2D = (
@@ -20,6 +24,7 @@ const useContext2D = (
 
   return ctx;
 };
+
 const drawContour = (ctx: CanvasRenderingContext2D) => {
   ctx.beginPath();
   ctx.moveTo(100, 100);
@@ -42,6 +47,23 @@ const drawBall = (
   ctx.closePath();
 };
 
+const useAnimation = (onFrame: () => void) => {
+  const requestRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const animate = () => {
+      onFrame();
+      requestRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => {
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+      }
+    };
+  }, [onFrame]);
+};
+
 const useEventListener = <K extends keyof DocumentEventMap>(
   type: K,
   onEvent: (e: DocumentEventMap[K]) => void
@@ -54,10 +76,18 @@ const useEventListener = <K extends keyof DocumentEventMap>(
   }, [type, onEvent]);
 };
 
-export const Sketch: FC = () => {
+export const Sketch: FC<Props> = ({ videoRef }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
   const [position, setPosition] = useState<[number, number]>([200, 150]);
+  const drawPlayers = useCallback(() => {
+    const video = videoRef.current;
+    if (ctx && video) {
+      const [x, y] = position;
+      ctx.drawImage(video, x, y, 100, 100);
+    }
+  }, [ctx, videoRef, position]);
+  useAnimation(drawPlayers);
   const onKeyDown = useCallback(
     (e: DocumentEventMap["keydown"]) => {
       if (!ctx) {

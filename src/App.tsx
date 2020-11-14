@@ -19,7 +19,7 @@ export default function App() {
       ) : (
         <video ref={videoRef} muted autoPlay />
       )}
-      <Sketch />
+      <Sketch videoRef={videoRef} />
     </div>
   );
 }
