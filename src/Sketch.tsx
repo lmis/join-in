@@ -13,10 +13,12 @@ interface Props {
 }
 
 const ballRadius = 50;
-const topBorder = 50;
-const leftBorder = 50;
-const rightBorder = 550;
-const bottomBorder = 350;
+const topBorder = 40;
+const leftBorder = 40;
+const rightBorder = 760;
+const bottomBorder = 760;
+const canvasWidth = 800;
+const canvasHeight = 800;
 
 const useContext2D = (
   canvasRef: MutableRefObject<HTMLCanvasElement | null>
@@ -39,7 +41,7 @@ const drawContour = (ctx: CanvasRenderingContext2D) => {
   ctx.stroke();
 };
 
-const useAnimation = (onFrame: () => Promise<void>) => {
+const useAnimation = (onFrame: () => void) => {
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -89,11 +91,16 @@ let loudspeaker: HTMLImageElement | null = null;
   );
 })();
 
+let office: HTMLImageElement | null = null;
+(async () => {
+  office = await loadImage(require("../public/assets/office.png"), 1000, 1000);
+})();
+
 export const Sketch: FC<Props> = ({ videoRef }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
-  const [position, setPosition] = useState<[number, number]>([200, 150]);
-  const drawPlayers = useCallback(async () => {
+  const [position, setPosition] = useState<[number, number]>([430, 700]);
+  const drawPlayers = useCallback(() => {
     const video = videoRef.current;
     if (ctx && video) {
       const [x, y] = position;
@@ -118,7 +125,13 @@ export const Sketch: FC<Props> = ({ videoRef }) => {
       ctx.drawImage(ctxTmp.canvas, 0, 0);
 
       if (loudspeaker) {
-        ctx.drawImage(loudspeaker, x, y, 150, 150);
+        ctx.drawImage(
+          loudspeaker,
+          x - 3.2 * ballRadius,
+          y - 2.3 * ballRadius,
+          (250 / loudspeaker.height) * loudspeaker.width,
+          250
+        );
       }
     }
   }, [ctx, videoRef, position]);
@@ -150,12 +163,13 @@ export const Sketch: FC<Props> = ({ videoRef }) => {
   useAnimation(drawPlayers);
 
   useEffect(() => {
-    if (ctx) {
+    if (ctx && office) {
       drawContour(ctx);
+      ctx.drawImage(office, 0, 0, canvasWidth, canvasHeight);
     }
     return () => {
       if (ctx) {
-        ctx.clearRect(0, 0, 600, 400);
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
       }
     };
   }, [ctx, position]);
@@ -165,10 +179,15 @@ export const Sketch: FC<Props> = ({ videoRef }) => {
   return (
     <>
       <h3>
-        Come on in, grab a coffee and joins uf for some jibber-jabber and
+        Come on in, grab a coffee and join us for some jibber-jabber and
         watercooler banter.
       </h3>
-      <canvas ref={canvasRef} className="Canvas" width="600" height="400">
+      <canvas
+        ref={canvasRef}
+        className="Canvas"
+        width={String(canvasWidth)}
+        height={String(canvasHeight)}
+      >
         Your browser does not support the HTML5 canvas tag.
       </canvas>
     </>
