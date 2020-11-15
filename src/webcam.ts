@@ -1,5 +1,11 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import { useRef, useEffect, useState, MutableRefObject } from "react";
+import {
+  useRef,
+  useEffect,
+  useState,
+  MutableRefObject,
+  createRef
+} from "react";
 import adapter from "webrtc-adapter";
 
 export interface UserMedia {
@@ -36,7 +42,9 @@ export interface Webcam extends UserMedia {
   videoRef: MutableRefObject<HTMLVideoElement>;
 }
 
-export const useVideoRef = (stream: MediaStream | null): MutableRefObject<HTMLVideoElement | null> => {
+export const useVideoRef = (
+  stream: MediaStream | null
+): MutableRefObject<HTMLVideoElement | null> => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -45,5 +53,31 @@ export const useVideoRef = (stream: MediaStream | null): MutableRefObject<HTMLVi
     }
   }, [stream, videoRef]);
 
-  return videoRef
-}
+  return videoRef;
+};
+
+export const useVideoRefs = (
+  streams: MediaStream[] = []
+): MutableRefObject<HTMLVideoElement>[] => {
+  const [refs, setRefs] = useState<MutableRefObject<HTMLVideoElement>[]>([]);
+
+  useEffect(() => {
+    setRefs((rs) => {
+      const refsWithStream = streams.map(
+        (s, i) =>
+          [rs[i] || createRef(), s] as [
+            MutableRefObject<HTMLVideoElement>,
+            MediaStream
+          ]
+      );
+      refsWithStream.forEach(([r, s]) => {
+        if (r.current) {
+          r.current.srcObject = s;
+        }
+      });
+      return refsWithStream.map(([r, s]) => r);
+    });
+  }, [streams.length]);
+
+  return refs;
+};

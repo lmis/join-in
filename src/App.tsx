@@ -1,6 +1,6 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import React, { useEffect, useState, useMemo } from "react";
-import { useVideoRef, useUserMedia } from "./webcam";
+import { useVideoRef, useVideoRefs, useUserMedia } from "./webcam";
 import { Sketch } from "./Sketch";
 import { useRemoteConnection } from "./connection";
 import "./styles.css";
@@ -9,17 +9,16 @@ import adapter from "webrtc-adapter";
 export default function App() {
   const constraints = useMemo(() => ({ audio: true, video: true }), []);
   const { stream, error } = useUserMedia(constraints);
-  const { usersById } = useRemoteConnection(
+  const { yourId, usersById } = useRemoteConnection(
     "https://lezte.sse.codesandbox.io/",
     stream
   );
-  const other = [...usersById.values()][0];
+  const others = [...usersById.values()].filter((u) => u.streams);
   const selfVideoRef = useVideoRef(stream);
-  const otherVideoRef = useVideoRef(other?.streams?.[0] ?? null);
+  const otherVideoRef = useVideoRefs(others.map((u) => u.streams![0]));
 
   return (
-    <div className="App">
-      <h1>Hello CodeSandbox</h1>
+    <div className="App" >
       {error ? (
         <>
           <h2>Cannot get webcam access.</h2>
@@ -27,13 +26,29 @@ export default function App() {
         </>
       ) : (
         <>
+          <h2>Users</h2>
+          <div>
+            {others.map((u) => (
+              <div key={u.userId}>
+                <div>{u.userId}</div>
+                <div>Video: {u.streams ? "yes" : "no"}</div>
+              </div>
+            ))}
+          </div>
+          <h2>You ({yourId})</h2>
           <div>
             <video ref={selfVideoRef} muted autoPlay />
           </div>
-          <h2>Other</h2>
-          <div>
-            <video ref={otherVideoRef} muted autoPlay />
-          </div>
+          {others.map(({ userId }, i) => {
+            return (
+              <div key={i}>
+                <h2>Other ({userId})</h2>
+                <div>
+                  <video ref={otherVideoRef[i]} muted autoPlay />
+                </div>
+              </div>
+            );
+          })}
         </>
       )}
       {/* <Sketch videoRef={videoRef} /> */}
