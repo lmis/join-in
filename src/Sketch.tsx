@@ -12,7 +12,11 @@ interface Props {
   videoRef: React.RefObject<HTMLVideoElement>;
 }
 
-const ballRadius = 30;
+const ballRadius = 50;
+const topBorder = 50;
+const leftBorder = 50;
+const rightBorder = 550;
+const bottomBorder = 350;
 
 const useContext2D = (
   canvasRef: MutableRefObject<HTMLCanvasElement | null>
@@ -27,31 +31,19 @@ const useContext2D = (
 
 const drawContour = (ctx: CanvasRenderingContext2D) => {
   ctx.beginPath();
-  ctx.moveTo(100, 100);
-  ctx.lineTo(500, 100);
-  ctx.lineTo(500, 300);
-  ctx.lineTo(100, 300);
+  ctx.moveTo(leftBorder, topBorder);
+  ctx.lineTo(rightBorder, topBorder);
+  ctx.lineTo(rightBorder, bottomBorder);
+  ctx.lineTo(leftBorder, bottomBorder);
   ctx.closePath();
   ctx.stroke();
 };
 
-const drawBall = (
-  ctx: CanvasRenderingContext2D,
-  position: [number, number],
-  fillStyle: string = "#0095DD"
-) => {
-  ctx.beginPath();
-  ctx.arc(position[0], position[1], ballRadius, 0, Math.PI * 2);
-  ctx.fillStyle = fillStyle;
-  ctx.fill();
-  ctx.closePath();
-};
-
-const useAnimation = (onFrame: () => void) => {
+const useAnimation = (onFrame: () => Promise<void>) => {
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const animate = () => {
+    const animate = async () => {
       onFrame();
       requestRef.current = requestAnimationFrame(animate);
     };
@@ -76,18 +68,61 @@ const useEventListener = <K extends keyof DocumentEventMap>(
   }, [type, onEvent]);
 };
 
+const loadImage = async (
+  url: string,
+  width?: number,
+  height?: number
+): Promise<HTMLImageElement> => {
+  return new Promise<HTMLImageElement>((resolve) => {
+    const image = new Image(width, height);
+    image.onload = () => resolve(image);
+    image.src = url;
+  });
+};
+
+let loudspeaker: HTMLImageElement | null = null;
+(async () => {
+  loudspeaker = await loadImage(
+    require("../public/assets/loudspeaker.png"),
+    800,
+    600
+  );
+})();
+
 export const Sketch: FC<Props> = ({ videoRef }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
   const [position, setPosition] = useState<[number, number]>([200, 150]);
-  const drawPlayers = useCallback(() => {
+  const drawPlayers = useCallback(async () => {
     const video = videoRef.current;
     if (ctx && video) {
       const [x, y] = position;
-      ctx.drawImage(video, x, y, 100, 100);
+      const tmpCanvas = document.createElement("canvas");
+      tmpCanvas.width = ctx.canvas.width;
+      tmpCanvas.height = ctx.canvas.height;
+      const ctxTmp = tmpCanvas.getContext("2d")!;
+
+      ctxTmp.beginPath();
+      ctxTmp.arc(position[0], position[1], ballRadius, 0, Math.PI * 2);
+      ctxTmp.clip();
+      ctxTmp.closePath();
+      ctxTmp.restore();
+
+      ctxTmp.drawImage(
+        video,
+        x - ballRadius,
+        y - ballRadius,
+        (100 / video.videoHeight) * video.videoWidth,
+        100
+      );
+      ctx.drawImage(ctxTmp.canvas, 0, 0);
+
+      if (loudspeaker) {
+        ctx.drawImage(loudspeaker, x, y, 150, 150);
+      }
     }
   }, [ctx, videoRef, position]);
-  useAnimation(drawPlayers);
+
   const onKeyDown = useCallback(
     (e: DocumentEventMap["keydown"]) => {
       if (!ctx) {
@@ -96,26 +131,27 @@ export const Sketch: FC<Props> = ({ videoRef }) => {
       const increment = 5;
       const [x, y] = position;
       if (e.key === "Right" || e.key === "ArrowRight") {
-        const newX = Math.min(x + increment, 500 - ballRadius);
+        const newX = Math.min(x + increment, rightBorder - ballRadius);
         setPosition([newX, y]);
       } else if (e.key === "Left" || e.key === "ArrowLeft") {
-        const newX = Math.max(x - increment, 100 + ballRadius);
+        const newX = Math.max(x - increment, leftBorder + ballRadius);
         setPosition([newX, y]);
       } else if (e.key === "Up" || e.key === "ArrowUp") {
-        const newY = Math.max(y - increment, 100 + ballRadius);
+        const newY = Math.max(y - increment, topBorder + ballRadius);
         setPosition([x, newY]);
       } else if (e.key === "Down" || e.key === "ArrowDown") {
-        const newY = Math.min(y + increment, 300 - ballRadius);
+        const newY = Math.min(y + increment, bottomBorder - ballRadius);
         setPosition([x, newY]);
       }
     },
     [position, ctx]
   );
 
+  useAnimation(drawPlayers);
+
   useEffect(() => {
     if (ctx) {
       drawContour(ctx);
-      drawBall(ctx, position);
     }
     return () => {
       if (ctx) {
@@ -128,7 +164,10 @@ export const Sketch: FC<Props> = ({ videoRef }) => {
 
   return (
     <>
-      <h3>Watercooler Corner</h3>
+      <h3>
+        Come on in, grab a coffee and joins uf for some jibber-jabber and
+        watercooler banter.
+      </h3>
       <canvas ref={canvasRef} className="Canvas" width="600" height="400">
         Your browser does not support the HTML5 canvas tag.
       </canvas>
