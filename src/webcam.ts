@@ -36,8 +36,7 @@ export interface Webcam extends UserMedia {
   videoRef: MutableRefObject<HTMLVideoElement>;
 }
 
-export const useWebcam = (constraints: MediaStreamConstraints) => {
-  const { stream, error } = useUserMedia(constraints);
+export const useVideoRef = (stream: MediaStream | null): MutableRefObject<HTMLVideoElement | null> => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -46,5 +45,5 @@ export const useWebcam = (constraints: MediaStreamConstraints) => {
     }
   }, [stream, videoRef]);
 
-  return { videoRef, stream, error };
-};
+  return videoRef
+}
