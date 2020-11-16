@@ -1,11 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import {
-  useRef,
-  useEffect,
-  useState,
-  MutableRefObject,
-  createRef
-} from "react";
+import { useEffect, useState } from "react";
 import adapter from "webrtc-adapter";
 
 export interface UserMedia {
@@ -38,22 +32,22 @@ export const useUserMedia = (
   return { stream, error };
 };
 
-export interface Webcam extends UserMedia {
-  videoRef: MutableRefObject<HTMLVideoElement>;
-}
-
+// Creating video elements and setting sources is expensive, we keep a cache by stream.id
 const videosByStreamId = new Map<string, HTMLVideoElement>();
-export const toVideoElement = (stream: MediaStream): HTMLVideoElement => {
-  const video = videosByStreamId.get(stream.id);
-  if (video) {
-    return video;
-  }
-  const newVideo = document.createElement("video");
-  newVideo.muted = true;
-  newVideo.autoplay = true;
-  newVideo.srcObject = stream;
-  newVideo.height = 0;
-  document.body.appendChild(newVideo);
-  videosByStreamId.set(stream.id, newVideo);
-  return newVideo;
+const createVideoElement = (stream: MediaStream): HTMLVideoElement => {
+  const video = document.createElement("video");
+  videosByStreamId.set(stream.id, video);
+
+  video.muted = true;
+  video.autoplay = true;
+  video.srcObject = stream;
+
+  // Video must be rendered or the content will just remain black. This is a hack to render it invisibly at the end of the page
+  video.height = 0;
+  document.body.appendChild(video);
+
+  return video;
 };
+
+export const toVideoElement = (stream: MediaStream): HTMLVideoElement =>
+  videosByStreamId.get(stream.id) ?? createVideoElement(stream);
