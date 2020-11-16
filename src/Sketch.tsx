@@ -39,7 +39,7 @@ const drawContour = (ctx: CanvasRenderingContext2D) => {
   ctx.stroke();
 };
 
-const useAnimation = (onFrame: () => Promise<void>) => {
+const useAnimation = (onFrame: () => void) => {
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -80,6 +80,8 @@ const loadImage = async (
   });
 };
 
+declare const require: (url: string)=> string;
+
 let loudspeaker: HTMLImageElement | null = null;
 (async () => {
   loudspeaker = await loadImage(
@@ -93,7 +95,7 @@ export const Sketch: FC<Props> = ({ videoRef }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
   const [position, setPosition] = useState<[number, number]>([200, 150]);
-  const drawPlayers = useCallback(async () => {
+  const drawPlayers = useCallback(() => {
     const video = videoRef.current;
     if (ctx && video) {
       const [x, y] = position;

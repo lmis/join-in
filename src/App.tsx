@@ -51,7 +51,7 @@ export default function App() {
           })}
         </>
       )}
-      {/* <Sketch videoRef={videoRef} /> */}
+      <Sketch videoRef={selfVideoRef} />
     </div>
   );
 }
