@@ -42,42 +42,18 @@ export interface Webcam extends UserMedia {
   videoRef: MutableRefObject<HTMLVideoElement>;
 }
 
-export const useVideoRef = (
-  stream: MediaStream | null
-): MutableRefObject<HTMLVideoElement | null> => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream, videoRef]);
-
-  return videoRef;
-};
-
-export const useVideoRefs = (
-  streams: MediaStream[] = []
-): MutableRefObject<HTMLVideoElement>[] => {
-  const [refs, setRefs] = useState<MutableRefObject<HTMLVideoElement>[]>([]);
-
-  useEffect(() => {
-    setRefs((rs) => {
-      const refsWithStream = streams.map(
-        (s, i) =>
-          [rs[i] || createRef(), s] as [
-            MutableRefObject<HTMLVideoElement>,
-            MediaStream
-          ]
-      );
-      refsWithStream.forEach(([r, s]) => {
-        if (r.current) {
-          r.current.srcObject = s;
-        }
-      });
-      return refsWithStream.map(([r, s]) => r);
-    });
-  }, [streams.length]);
-
-  return refs;
+const videosByStreamId = new Map<string, HTMLVideoElement>();
+export const toVideoElement = (stream: MediaStream): HTMLVideoElement => {
+  const video = videosByStreamId.get(stream.id);
+  if (video) {
+    return video;
+  }
+  const newVideo = document.createElement("video");
+  newVideo.muted = true;
+  newVideo.autoplay = true;
+  newVideo.srcObject = stream;
+  newVideo.height = 0;
+  document.body.appendChild(newVideo);
+  videosByStreamId.set(stream.id, newVideo);
+  return newVideo;
 };

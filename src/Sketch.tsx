@@ -8,8 +8,12 @@ import React, {
   useCallback
 } from "react";
 
+import { UserData } from "connection";
+import { toVideoElement } from "webcam";
+
 interface Props {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  others: UserData[];
+  stream: MediaStream | null;
 }
 
 const ballRadius = 50;
@@ -39,12 +43,12 @@ const drawContour = (ctx: CanvasRenderingContext2D) => {
   ctx.stroke();
 };
 
-const useAnimation = (onFrame: () => void) => {
+const useAnimation = (onFrame: () => Promise<void>) => {
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
     const animate = async () => {
-      onFrame();
+      await onFrame();
       requestRef.current = requestAnimationFrame(animate);
     };
     animate();
@@ -80,24 +84,24 @@ const loadImage = async (
   });
 };
 
-declare const require: (url: string)=> string;
+declare const require: (url: string) => string;
 
 let loudspeaker: HTMLImageElement | null = null;
-(async () => {
-  loudspeaker = await loadImage(
-    require("../public/assets/loudspeaker.png"),
-    800,
-    600
-  );
-})();
+// (async () => {
+//   loudspeaker = await loadImage(
+//     require("../public/assets/loudspeaker.png"),
+//     800,
+//     600
+//   );
+// })();
 
-export const Sketch: FC<Props> = ({ videoRef }) => {
+export const Sketch: FC<Props> = ({ stream, others }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
   const [position, setPosition] = useState<[number, number]>([200, 150]);
-  const drawPlayers = useCallback(() => {
-    const video = videoRef.current;
-    if (ctx && video) {
+  const drawPlayers = useCallback(async () => {
+    if (ctx && stream) {
+      const video = toVideoElement(stream);
       const [x, y] = position;
       const tmpCanvas = document.createElement("canvas");
       tmpCanvas.width = ctx.canvas.width;
@@ -117,13 +121,23 @@ export const Sketch: FC<Props> = ({ videoRef }) => {
         (100 / video.videoHeight) * video.videoWidth,
         100
       );
+
       ctx.drawImage(ctxTmp.canvas, 0, 0);
+      others.forEach((other) => {
+        ctx.drawImage(
+          toVideoElement(other.streams![0]),
+          0,
+          0,
+          (100 / video.videoHeight) * video.videoWidth,
+          100
+        );
+      });
 
       if (loudspeaker) {
         ctx.drawImage(loudspeaker, x, y, 150, 150);
       }
     }
-  }, [ctx, videoRef, position]);
+  }, [ctx, stream, position]);
 
   const onKeyDown = useCallback(
     (e: DocumentEventMap["keydown"]) => {

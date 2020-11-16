@@ -1,6 +1,6 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import React, { useEffect, useState, useMemo } from "react";
-import { useVideoRef, useVideoRefs, useUserMedia } from "./webcam";
+import { useVideoRef, useUserMedia } from "./webcam";
 import { Sketch } from "./Sketch";
 import { useRemoteConnection } from "./connection";
 import "./styles.css";
@@ -10,15 +10,13 @@ export default function App() {
   const constraints = useMemo(() => ({ audio: true, video: true }), []);
   const { stream, error } = useUserMedia(constraints);
   const { yourId, usersById } = useRemoteConnection(
-    "https://lezte.sse.codesandbox.io/",
+    "https://czof1.sse.codesandbox.io/",
     stream
   );
   const others = [...usersById.values()].filter((u) => u.streams);
-  const selfVideoRef = useVideoRef(stream);
-  const otherVideoRef = useVideoRefs(others.map((u) => u.streams![0]));
 
   return (
-    <div className="App" >
+    <div className="App">
       {error ? (
         <>
           <h2>Cannot get webcam access.</h2>
@@ -27,6 +25,7 @@ export default function App() {
       ) : (
         <>
           <h2>Users</h2>
+          <div>You ({yourId})</div>
           <div>
             {others.map((u) => (
               <div key={u.userId}>
@@ -35,23 +34,9 @@ export default function App() {
               </div>
             ))}
           </div>
-          <h2>You ({yourId})</h2>
-          <div>
-            <video ref={selfVideoRef} muted autoPlay />
-          </div>
-          {others.map(({ userId }, i) => {
-            return (
-              <div key={i}>
-                <h2>Other ({userId})</h2>
-                <div>
-                  <video ref={otherVideoRef[i]} muted autoPlay />
-                </div>
-              </div>
-            );
-          })}
         </>
       )}
-      <Sketch videoRef={selfVideoRef} />
+      <Sketch others={others} stream={stream} />
     </div>
   );
 }
