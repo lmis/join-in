@@ -45,7 +45,7 @@ const drawContour = (ctx: CanvasRenderingContext2D) => {
   ctx.stroke();
 };
 
-const useAnimation = (onFrame: () => void) => {
+const useAnimation = (onFrame: () => Promise<void>) => {
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -88,10 +88,14 @@ const loadImage = async (
 
 declare const require: (url: string) => string;
 
-
 let office: HTMLImageElement | null = null;
 (async () => {
   office = await loadImage(require("../public/assets/office.png"), 1000, 1000);
+})();
+
+let loudspeaker: HTMLImageElement | null = null;
+(async () => {
+  loudspeaker = await loadImage(require("../public/assets/loudspeaker_grey.png"), 800, 600);
 })();
 
 export const Sketch: FC<Props> = ({ stream, others }) => {
@@ -112,8 +116,9 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
       ctxTmp.closePath();
       ctxTmp.restore();
 
+      const video = toVideoElement(stream);
       ctxTmp.drawImage(
-        toVideoElement(stream),
+        video,
         x - ballRadius,
         y - ballRadius,
         (100 / video.videoHeight) * video.videoWidth,
@@ -131,9 +136,9 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
         );
       });
 
-      if (office) {
+      if (loudspeaker) {
         ctx.drawImage(
-          office,
+          loudspeaker,
           x - 3.2 * ballRadius,
           y - 2.3 * ballRadius,
           (250 / loudspeaker.height) * loudspeaker.width,
@@ -141,7 +146,7 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
         );
       }
     }
-  }, [ctx, stream, position]);
+  }, [ctx, stream, others, position]);
 
   const onKeyDown = useCallback(
     (e: DocumentEventMap["keydown"]) => {
