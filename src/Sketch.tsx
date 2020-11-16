@@ -17,10 +17,12 @@ interface Props {
 }
 
 const ballRadius = 50;
-const topBorder = 50;
-const leftBorder = 50;
-const rightBorder = 550;
-const bottomBorder = 350;
+const topBorder = 40;
+const leftBorder = 40;
+const rightBorder = 760;
+const bottomBorder = 760;
+const canvasWidth = 800;
+const canvasHeight = 800;
 
 const useContext2D = (
   canvasRef: MutableRefObject<HTMLCanvasElement | null>
@@ -43,7 +45,7 @@ const drawContour = (ctx: CanvasRenderingContext2D) => {
   ctx.stroke();
 };
 
-const useAnimation = (onFrame: () => Promise<void>) => {
+const useAnimation = (onFrame: () => void) => {
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -86,22 +88,18 @@ const loadImage = async (
 
 declare const require: (url: string) => string;
 
-let loudspeaker: HTMLImageElement | null = null;
-// (async () => {
-//   loudspeaker = await loadImage(
-//     require("../public/assets/loudspeaker.png"),
-//     800,
-//     600
-//   );
-// })();
+
+let office: HTMLImageElement | null = null;
+(async () => {
+  office = await loadImage(require("../public/assets/office.png"), 1000, 1000);
+})();
 
 export const Sketch: FC<Props> = ({ stream, others }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
-  const [position, setPosition] = useState<[number, number]>([200, 150]);
+  const [position, setPosition] = useState<[number, number]>([430, 700]);
   const drawPlayers = useCallback(async () => {
     if (ctx && stream) {
-      const video = toVideoElement(stream);
       const [x, y] = position;
       const tmpCanvas = document.createElement("canvas");
       tmpCanvas.width = ctx.canvas.width;
@@ -115,7 +113,7 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
       ctxTmp.restore();
 
       ctxTmp.drawImage(
-        video,
+        toVideoElement(stream),
         x - ballRadius,
         y - ballRadius,
         (100 / video.videoHeight) * video.videoWidth,
@@ -133,8 +131,14 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
         );
       });
 
-      if (loudspeaker) {
-        ctx.drawImage(loudspeaker, x, y, 150, 150);
+      if (office) {
+        ctx.drawImage(
+          office,
+          x - 3.2 * ballRadius,
+          y - 2.3 * ballRadius,
+          (250 / loudspeaker.height) * loudspeaker.width,
+          250
+        );
       }
     }
   }, [ctx, stream, position]);
@@ -166,12 +170,13 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
   useAnimation(drawPlayers);
 
   useEffect(() => {
-    if (ctx) {
+    if (ctx && office) {
       drawContour(ctx);
+      ctx.drawImage(office, 0, 0, canvasWidth, canvasHeight);
     }
     return () => {
       if (ctx) {
-        ctx.clearRect(0, 0, 600, 400);
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
       }
     };
   }, [ctx, position]);
@@ -181,10 +186,15 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
   return (
     <>
       <h3>
-        Come on in, grab a coffee and joins uf for some jibber-jabber and
+        Come on in, grab a coffee and join us for some jibber-jabber and
         watercooler banter.
       </h3>
-      <canvas ref={canvasRef} className="Canvas" width="600" height="400">
+      <canvas
+        ref={canvasRef}
+        className="Canvas"
+        width={String(canvasWidth)}
+        height={String(canvasHeight)}
+      >
         Your browser does not support the HTML5 canvas tag.
       </canvas>
     </>
