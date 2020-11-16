@@ -3,7 +3,9 @@
     "./src/**/*"
   ],
   "compilerOptions": {
+    "baseUrl": "./src", 
     "strict": true,
+    "downlevelIteration": true,
     "esModuleInterop": true,
     "lib": [
       "dom",

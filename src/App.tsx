@@ -9,17 +9,15 @@ import adapter from "webrtc-adapter";
 export default function App() {
   const constraints = useMemo(() => ({ audio: true, video: true }), []);
   const { stream, error } = useUserMedia(constraints);
-  const { usersById } = useRemoteConnection(
-    "https://lezte.sse.codesandbox.io/",
+  const { yourId, usersById } = useRemoteConnection(
+    "https://czof1.sse.codesandbox.io/",
     stream
   );
-  const other = [...usersById.values()][0];
-  const selfVideoRef = useVideoRef(stream);
-  const otherVideoRef = useVideoRef(other?.streams?.[0] ?? null);
+  const others = [...usersById.values()].filter((u) => u.streams);
+
 
   return (
     <div className="App">
-      <h1>Welcome and join-in!</h1>
       {error ? (
         <>
           <h2>Cannot get webcam access.</h2>
@@ -27,16 +25,19 @@ export default function App() {
         </>
       ) : (
         <>
+          <h2>Users</h2>
+          <div>You ({yourId})</div>
           <div>
-            <video ref={selfVideoRef} muted autoPlay />
-          </div>
-          <h2>Other</h2>
-          <div>
-            <video ref={otherVideoRef} muted autoPlay />
+            {others.map((u) => (
+              <div key={u.userId}>
+                <div>{u.userId}</div>
+                <div>Video: {u.streams ? "yes" : "no"}</div>
+              </div>
+            ))}
           </div>
         </>
       )}
-      {/* <Sketch videoRef={videoRef} /> */}
+      <Sketch others={others} stream={stream} />
     </div>
   );
 }
