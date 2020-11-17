@@ -12,6 +12,8 @@ import { UserData } from "connection";
 import { toVideoElement } from "webcam";
 
 interface Props {
+  position: [number, number];
+  setPosition: (position: [number, number]) => void;
   others: UserData[];
   stream: MediaStream | null;
 }
@@ -95,13 +97,21 @@ let office: HTMLImageElement | null = null;
 
 let loudspeaker: HTMLImageElement | null = null;
 (async () => {
-  loudspeaker = await loadImage(require("../public/assets/loudspeaker_grey.png"), 800, 600);
+  loudspeaker = await loadImage(
+    require("../public/assets/loudspeaker_grey.png"),
+    800,
+    600
+  );
 })();
 
-export const Sketch: FC<Props> = ({ stream, others }) => {
+export const Sketch: FC<Props> = ({
+  position,
+  setPosition,
+  stream,
+  others
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
-  const [position, setPosition] = useState<[number, number]>([430, 700]);
   const drawPlayers = useCallback(async () => {
     if (ctx && stream) {
       const [x, y] = position;
@@ -129,8 +139,8 @@ export const Sketch: FC<Props> = ({ stream, others }) => {
       others.forEach((other) => {
         ctx.drawImage(
           toVideoElement(other.streams![0]),
-          0,
-          0,
+          other.position?.[0] ?? 0,
+          other.position?.[1] ?? 0,
           (100 / video.videoHeight) * video.videoWidth,
           100
         );

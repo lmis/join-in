@@ -1,19 +1,17 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useUserMedia } from "./webcam";
-import { Sketch } from "./Sketch";
+import { Sketch } from "Sketch";
 import { useRemoteConnection } from "./connection";
 import "./styles.css";
-import adapter from "webrtc-adapter";
-
-const origin: [number, number] = [0, 0];
 
 export default function App() {
   const constraints = useMemo(() => ({ audio: true, video: true }), []);
+  const [position, setPosition] = useState<[number, number]>([430, 700]);
   const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
     "https://czof1.sse.codesandbox.io/",
-    origin,
+    position,
     stream
   );
   const others = users.filter((u) => u.streams);
@@ -39,7 +37,12 @@ export default function App() {
           </div>
         </>
       )}
-      <Sketch others={others} stream={stream} />
+      <Sketch
+        position={position}
+        setPosition={setPosition}
+        others={others}
+        stream={stream}
+      />
     </div>
   );
 }
