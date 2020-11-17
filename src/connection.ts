@@ -3,24 +3,12 @@ import { useEffect, useState } from "react";
 import adapter from "webrtc-adapter";
 import io from "socket.io-client";
 
-export interface UserData {
-  userId: string;
-  peerConnection: RTCPeerConnection;
-  streams?: readonly MediaStream[];
-  error?: Error;
-}
-
-export interface RemoteData {
-  yourId: string | null;
-  usersById: Map<string, UserData>;
-  maxUsersReached: boolean;
-}
-
 enum Signals {
   HELLO_CLIENT = "hello-client",
   MAX_USERS_REACHED = "max-users-reached",
   USER_JOINED = "user-joined",
   USER_LEFT = "user-left",
+  POSITION_UPDATE = "position-update",
   ICE_CANDIDATE = "ice-candidate",
   CONNECTION_OFFER = "connection-offer",
   CONNECTION_ANSWER = "connection-answer"
@@ -34,212 +22,240 @@ const config = {
   ]
 };
 
-const put = <K, V, V2 extends V>(key: K, value: V2) => (
-  orig: Map<K, V>
-): Map<K, V> => {
-  const m = new Map(orig);
-  m.set(key, value);
-  return m;
+interface ConnectionParams {
+  url: string;
+  mediaStream: MediaStream;
+  onConnectionEstablished: (id: string, userIds: string[]) => void;
+  onMaxUsersReached: () => void;
+  onUserJoined: (userId: string) => void;
+  onUserLeft: (userId: string) => void;
+  onError: (userId: string, error: Error) => void;
+  onStreams: (userId: string, streams: readonly MediaStream[]) => void;
+  onPositionUpdate: (userId: string, position: [number, number]) => void;
+}
+
+interface ConnectionReturn {
+  sendPositionUpdate: (position: [number, number]) => void;
+  cleanUp: () => void;
+}
+
+const establishConnection = ({
+  url,
+  mediaStream,
+  onConnectionEstablished,
+  onMaxUsersReached,
+  onUserJoined,
+  onUserLeft,
+  onError,
+  onStreams,
+  onPositionUpdate
+}: ConnectionParams): ConnectionReturn => {
+  const connectionsByUserId = new Map<string, RTCPeerConnection>();
+  const registeredSignals = new Set<Signals>();
+
+  console.log("connecting");
+  const socket = io(url, { transports: ["websocket"] }).connect();
+  const send = <T>(signal: Signals, payload: T, silent?: boolean) => {
+    if (!silent) {
+      console.log(
+        `SEND ${signal} ${
+          payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : ""
+        }`
+      );
+    }
+    socket.emit(signal, payload);
+  };
+  const receive = <T>(
+    signal: Signals,
+    handle: (payload: T) => void,
+    silent?: boolean
+  ) => {
+    socket.on(signal, (payload: T) => {
+      if (!silent) {
+        console.log(
+          `RECEIVE ${signal} ${
+            payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : ""
+          }`
+        );
+      }
+      handle(payload);
+    });
+    registeredSignals.add(signal);
+  };
+
+  const sendPositionUpdate = (position: [number, number]): void => {
+    send(Signals.POSITION_UPDATE, { position });
+  };
+
+  const cleanUp = () => {
+    console.log("disconnecting");
+    registeredSignals.forEach((s) => socket.off(s));
+    socket.disconnect();
+  };
+
+  const getOrMakeRTCPeerConnection = (userId: string): RTCPeerConnection => {
+    const existingPC = connectionsByUserId.get(userId);
+    if (existingPC) {
+      return existingPC;
+    }
+    const peerConnection = new RTCPeerConnection(config);
+    connectionsByUserId.set(userId, peerConnection);
+
+    peerConnection.onicecandidate = ({ candidate }) => {
+      if (candidate) {
+        send(Signals.ICE_CANDIDATE, { target: userId, candidate }, true);
+      }
+    };
+    peerConnection.onnegotiationneeded = async () => {
+      try {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        send(Signals.CONNECTION_OFFER, { target: userId, offer });
+      } catch (error) {
+        onError(userId, error);
+      }
+    };
+    peerConnection.ontrack = ({ streams }) => {
+      onStreams(userId, streams);
+    };
+
+    return peerConnection;
+  };
+
+  receive<{ id: string; userIds: string[] }>(
+    Signals.HELLO_CLIENT,
+    ({ id, userIds }) => {
+      userIds.forEach(getOrMakeRTCPeerConnection);
+      onConnectionEstablished(id, userIds);
+    }
+  );
+
+  receive<void>(Signals.MAX_USERS_REACHED, () => {
+    onMaxUsersReached();
+  });
+
+  receive<{ userId: string }>(Signals.USER_JOINED, ({ userId }) => {
+    const peerConnection = getOrMakeRTCPeerConnection(userId);
+    mediaStream.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, mediaStream);
+    });
+    onUserJoined(userId);
+  });
+
+  receive<{ userId: string; position: [number, number] }>(
+    Signals.POSITION_UPDATE,
+    ({ userId, position }) => {
+      onPositionUpdate(userId, position);
+    }
+  );
+
+  receive<{ userId: string; candidate: RTCIceCandidate }>(
+    Signals.ICE_CANDIDATE,
+    ({ userId, candidate }) => {
+      const peerConnection = getOrMakeRTCPeerConnection(userId);
+      if (peerConnection.remoteDescription?.type) {
+        peerConnection.addIceCandidate(candidate);
+      }
+    },
+    true
+  );
+
+  receive<{ userId: string; offer: RTCSessionDescription }>(
+    Signals.CONNECTION_OFFER,
+    async ({ userId, offer }) => {
+      const peerConnection = getOrMakeRTCPeerConnection(userId);
+      try {
+        await peerConnection.setRemoteDescription(offer);
+        mediaStream.getTracks().forEach((track) => {
+          peerConnection.addTrack(track, mediaStream);
+        });
+        const answer = await peerConnection.createAnswer();
+        peerConnection.setLocalDescription(answer);
+        send(Signals.CONNECTION_ANSWER, { target: userId, answer });
+      } catch (error) {
+        onError(userId, error);
+      }
+    }
+  );
+  receive<{ userId: string; answer: RTCSessionDescription }>(
+    Signals.CONNECTION_ANSWER,
+    ({ userId, answer }) => {
+      getOrMakeRTCPeerConnection(userId).setRemoteDescription(answer);
+    }
+  );
+
+  receive<{ userId: string }>(Signals.USER_LEFT, ({ userId }) => {
+    const peerConnection = connectionsByUserId.get(userId);
+    if (peerConnection) {
+      peerConnection.close();
+      connectionsByUserId.delete(userId);
+    }
+    onUserLeft(userId);
+  });
+
+  return {
+    sendPositionUpdate,
+    cleanUp
+  };
 };
 
-const logEvent = (signal: Signals, payload?: any) => {
-  console.log(
-    `INCOMING ${signal} ${
-      payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : ""
-    }`
-  );
-};
+export interface UserData {
+  userId: string;
+  position?: [number, number];
+  streams?: readonly MediaStream[];
+  error?: Error;
+}
 
-const logEmit = (signal: Signals, payload?: any) => {
-  console.log(
-    `OUTGOING ${signal} ${
-      payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : ""
-    }`
-  );
-};
+export interface RemoteConnection {
+  connectionId: string | null;
+  users: UserData[];
+  maxUsersReached: boolean;
+}
 
 export const useRemoteConnection = (
   url: string,
+  position: [number, number],
   mediaStream: MediaStream | null
-): RemoteData => {
-  const [usersById, setUsersByIdU] = useState<Map<string, UserData>>(new Map());
-  const [yourId, setYourId] = useState<string | null>(null);
-  const [maxUsersReached, setMaxUsersReached] = useState(false);
+): RemoteConnection => {
+  const [connectionId, setConnectionId] = useState<string | null>(null);
+  const [maxUsersReached, setMaxUsersReached] = useState<boolean>(false);
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [sendPositionUpdate, setSendPositionUpdate] = useState<
+    ((position: [number, number]) => void) | null
+  >(null);
+
+  useEffect(() => {
+    sendPositionUpdate?.(position);
+  }, [sendPositionUpdate, position]);
 
   useEffect(() => {
     if (!mediaStream) {
       return;
     }
-    let r = { usersByIdVolatile: new Map(usersById) };
-    const setUsersById = (
-      f:
-        | Map<string, UserData>
-        | ((x: Map<string, UserData>) => Map<string, UserData>)
-    ) => {
-      if (f instanceof Function) {
-        r.usersByIdVolatile = f(r.usersByIdVolatile);
-      } else {
-        r.usersByIdVolatile = f;
-      }
-      console.log(
-        "setting",
-        JSON.stringify([...r.usersByIdVolatile.values()].map((u) => u.streams))
-      );
-      setUsersByIdU(r.usersByIdVolatile);
-    };
-    const getUser = (userId: string): UserData | null =>
-      r.usersByIdVolatile.get(userId) ?? null;
 
-    console.log("connecting");
-    const socket = io(url, { transports: ["websocket"] }).connect();
-    const emit = (signal: Signals, payload: any) => {
-      logEmit(signal, payload);
-      socket.emit(signal, payload);
-    };
-    const mkRTCConnection = (userId: string) => {
-      const peerConnection = new RTCPeerConnection(config);
+    const updateUser = (userId: string, update: Partial<UserData>) =>
+      setUsers((xs) => [
+        ...xs.map((u) => (u.userId !== userId ? u : { ...u, ...update }))
+      ]);
+    const connection = establishConnection({
+      url,
+      mediaStream,
+      onConnectionEstablished: (id, userIds) => {
+        setConnectionId(id);
+        setUsers(userIds.map((userId) => ({ userId })));
+      },
+      onMaxUsersReached: () => setMaxUsersReached(true),
+      onUserJoined: (userId) => setUsers((xs) => [...xs, { userId }]),
+      onUserLeft: (userId) =>
+        setUsers((xs) => xs.filter((u) => u.userId !== userId)),
+      onError: (userId, error) => updateUser(userId, { error }),
+      onStreams: (userId, streams) => updateUser(userId, { streams }),
+      onPositionUpdate: (userId, position) => updateUser(userId, { position })
+    });
+    setSendPositionUpdate(() => connection.sendPositionUpdate);
 
-      peerConnection.onicecandidate = ({ candidate }) => {
-        if (candidate) {
-          socket.emit(Signals.ICE_CANDIDATE, { target: userId, candidate });
-        }
-      };
-      peerConnection.onnegotiationneeded = async () => {
-        try {
-          const offer = await peerConnection.createOffer();
-          await peerConnection.setLocalDescription(offer);
-          emit(Signals.CONNECTION_OFFER, { target: userId, offer });
-          setUsersById(
-            put(userId, {
-              userId,
-              peerConnection
-            })
-          );
-        } catch (error) {
-          setUsersById(
-            put(userId, {
-              userId,
-              peerConnection,
-              error
-            })
-          );
-        }
-      };
-      peerConnection.ontrack = (event) => {
-        console.log("happening");
-        console.log(event.streams);
-        setUsersById(
-          put(userId, { userId, peerConnection, streams: event.streams })
-        );
-      };
-
-      return peerConnection;
-    };
-    socket
-      .on(
-        Signals.HELLO_CLIENT,
-        (payload: { id: string; userIds: string[] }) => {
-          logEvent(Signals.HELLO_CLIENT, payload);
-          setYourId(payload.id);
-          const m = new Map<string, UserData>();
-          payload.userIds.forEach((userId) =>
-            m.set(
-              userId,
-              getUser(userId) ?? {
-                userId,
-                peerConnection: mkRTCConnection(userId)
-              }
-            )
-          );
-          setUsersById(m);
-        }
-      )
-      .on(Signals.MAX_USERS_REACHED, () => {
-        logEvent(Signals.MAX_USERS_REACHED);
-        setMaxUsersReached(true);
-      })
-      .on(Signals.USER_JOINED, (payload: { userId: string }) => {
-        logEvent(Signals.USER_JOINED, payload);
-        const { userId } = payload;
-        const peerConnection = mkRTCConnection(userId);
-        mediaStream.getTracks().forEach((track) => {
-          peerConnection.addTrack(track, mediaStream);
-        });
-      })
-      .on(
-        Signals.ICE_CANDIDATE,
-        (payload: { userId: string; candidate: RTCIceCandidate }) => {
-          // logEvent(Signals.ICE_CANDIDATE, payload);
-          const { userId, candidate } = payload;
-
-          const peerConnection = getUser(userId)?.peerConnection;
-          if (peerConnection?.remoteDescription?.type) {
-            peerConnection.addIceCandidate(candidate);
-          }
-        }
-      )
-      .on(
-        Signals.CONNECTION_OFFER,
-        async (payload: { userId: string; offer: RTCSessionDescription }) => {
-          logEvent(Signals.CONNECTION_OFFER, payload);
-          const { userId, offer } = payload;
-          const user = getUser(userId) ?? {
-            userId,
-            peerConnection: mkRTCConnection(userId)
-          };
-          const { peerConnection } = user;
-
-          try {
-            await peerConnection.setRemoteDescription(offer);
-            mediaStream.getTracks().forEach((track) => {
-              peerConnection.addTrack(track, mediaStream);
-            });
-            const answer = await peerConnection.createAnswer();
-            peerConnection.setLocalDescription(answer);
-            emit(Signals.CONNECTION_ANSWER, { target: userId, answer });
-            setUsersById(
-              put(userId, getUser(userId) ?? { userId, peerConnection })
-            );
-          } catch (error) {
-            setUsersById(
-              put(userId, {
-                userId,
-                peerConnection,
-                error
-              })
-            );
-          }
-        }
-      )
-      .on(
-        Signals.CONNECTION_ANSWER,
-        (payload: { userId: string; answer: RTCSessionDescription }) => {
-          logEvent(Signals.CONNECTION_ANSWER, payload);
-          const peerConnection = getUser(payload.userId)?.peerConnection;
-          if (peerConnection) {
-            peerConnection.setRemoteDescription(payload.answer);
-          }
-        }
-      )
-      .on(Signals.USER_LEFT, (payload: { userId: string }) => {
-        logEvent(Signals.USER_LEFT, payload);
-        const { userId } = payload;
-        const user = getUser(userId);
-        user?.peerConnection.close();
-        setUsersById((xs) => {
-          const m = new Map(xs);
-          m.delete(userId);
-          return m;
-        });
-      });
-    return () => {
-      console.log("disconnecting");
-      Object.keys(Signals)
-        .map((k) => (Signals as any)[k])
-        .forEach((s) => socket.off(s));
-      socket.disconnect();
-    };
+    return connection.cleanUp;
   }, [url, mediaStream]);
 
-  return { yourId, usersById, maxUsersReached };
+  return { connectionId, users, maxUsersReached };
 };
