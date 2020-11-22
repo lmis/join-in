@@ -4,7 +4,7 @@ import adapter from "webrtc-adapter";
 import io from "socket.io-client";
 import { Position } from "utils";
 
-enum Signals {
+enum Signal {
   HELLO_CLIENT = "hello-client",
   MAX_USERS_REACHED = "max-users-reached",
   USER_JOINED = "user-joined",
@@ -40,7 +40,7 @@ interface ConnectionReturn {
   cleanUp: () => void;
 }
 
-const stringifyPayload = (payload?: object): string =>
+const stringifyPayload = <T>(payload?: T): string =>
   payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : "";
 
 const establishConnection = ({
@@ -55,12 +55,12 @@ const establishConnection = ({
   onPositionUpdate
 }: ConnectionParams): ConnectionReturn => {
   const connectionsByUserId = new Map<string, RTCPeerConnection>();
-  const registeredSignals = new Set<Signals>();
+  const registeredSignals = new Set<Signal>();
 
   console.log("connecting");
   const socket = io(url, { transports: ["websocket"] }).connect();
-  const send = <T extends object>(
-    signal: Signals,
+  const send = <T>(
+    signal: Signal,
     payload: T,
     silent?: boolean
   ) => {
@@ -77,8 +77,8 @@ const establishConnection = ({
       socket.emit(signal, payload);
     }
   };
-  const receive = <T extends object>(
-    signal: Signals,
+  const receive = <T extends object | void>(
+    signal: Signal,
     handle: (payload: T) => void,
     silent?: boolean
   ) => {
@@ -92,7 +92,7 @@ const establishConnection = ({
   };
 
   const sendPositionUpdate = (position: Position): void => {
-    send(Signals.POSITION_UPDATE, { position });
+    send(Signal.POSITION_UPDATE, { position });
   };
 
   const cleanUp = () => {
@@ -111,14 +111,14 @@ const establishConnection = ({
 
     peerConnection.onicecandidate = ({ candidate }) => {
       if (candidate) {
-        send(Signals.ICE_CANDIDATE, { target: userId, candidate }, true);
+        send(Signal.ICE_CANDIDATE, { target: userId, candidate }, true);
       }
     };
     peerConnection.onnegotiationneeded = async () => {
       try {
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-        send(Signals.CONNECTION_OFFER, { target: userId, offer });
+        send(Signal.CONNECTION_OFFER, { target: userId, offer });
       } catch (error) {
         onError(userId, error);
       }
@@ -130,16 +130,16 @@ const establishConnection = ({
     return peerConnection;
   };
 
-  receive<{ userIds: string[] }>(Signals.HELLO_CLIENT, ({ userIds }) => {
+  receive<{ userIds: string[] }>(Signal.HELLO_CLIENT, ({ userIds }) => {
     userIds.forEach(getOrMakeRTCPeerConnection);
     onConnectionEstablished(socket.id, userIds);
   });
 
-  receive<void>(Signals.MAX_USERS_REACHED, () => {
+  receive<void>(Signal.MAX_USERS_REACHED, () => {
     onMaxUsersReached();
   });
 
-  receive<{ userId: string }>(Signals.USER_JOINED, ({ userId }) => {
+  receive<{ userId: string }>(Signal.USER_JOINED, ({ userId }) => {
     const peerConnection = getOrMakeRTCPeerConnection(userId);
     mediaStream.getTracks().forEach((track) => {
       peerConnection.addTrack(track, mediaStream);
@@ -148,14 +148,14 @@ const establishConnection = ({
   });
 
   receive<{ userId: string; position: Position }>(
-    Signals.POSITION_UPDATE,
+    Signal.POSITION_UPDATE,
     ({ userId, position }) => {
       onPositionUpdate(userId, position);
     }
   );
 
   receive<{ userId: string; candidate: RTCIceCandidate }>(
-    Signals.ICE_CANDIDATE,
+    Signal.ICE_CANDIDATE,
     ({ userId, candidate }) => {
       const peerConnection = getOrMakeRTCPeerConnection(userId);
       if (peerConnection.remoteDescription?.type) {
@@ -166,7 +166,7 @@ const establishConnection = ({
   );
 
   receive<{ userId: string; offer: RTCSessionDescription }>(
-    Signals.CONNECTION_OFFER,
+    Signal.CONNECTION_OFFER,
     async ({ userId, offer }) => {
       const peerConnection = getOrMakeRTCPeerConnection(userId);
       try {
@@ -176,20 +176,20 @@ const establishConnection = ({
         });
         const answer = await peerConnection.createAnswer();
         peerConnection.setLocalDescription(answer);
-        send(Signals.CONNECTION_ANSWER, { target: userId, answer });
+        send(Signal.CONNECTION_ANSWER, { target: userId, answer });
       } catch (error) {
         onError(userId, error);
       }
     }
   );
   receive<{ userId: string; answer: RTCSessionDescription }>(
-    Signals.CONNECTION_ANSWER,
+    Signal.CONNECTION_ANSWER,
     ({ userId, answer }) => {
       getOrMakeRTCPeerConnection(userId).setRemoteDescription(answer);
     }
   );
 
-  receive<{ userId: string }>(Signals.USER_LEFT, ({ userId }) => {
+  receive<{ userId: string }>(Signal.USER_LEFT, ({ userId }) => {
     const peerConnection = connectionsByUserId.get(userId);
     if (peerConnection) {
       peerConnection.close();
@@ -219,7 +219,7 @@ export interface RemoteConnection {
 
 export const useRemoteConnection = (
   url: string,
-  position: Position,
+  [x,y]: Position,
   mediaStream: MediaStream | null
 ): RemoteConnection => {
   const [connectionId, setConnectionId] = useState<string | null>(null);
@@ -230,8 +230,8 @@ export const useRemoteConnection = (
   >(null);
 
   useEffect(() => {
-    sendPositionUpdate?.(position);
-  }, [sendPositionUpdate, position]);
+    sendPositionUpdate?.([x,y]);
+  }, [sendPositionUpdate, x,y]);
 
   useEffect(() => {
     if (!mediaStream) {

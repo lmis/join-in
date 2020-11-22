@@ -12,3 +12,8 @@ export const clampRect = (
   [xMin, yMin]: Position,
   [xMax, yMax]: Position
 ): Position => [clamp(x, xMin, xMax), clamp(y, yMin, yMax)];
+
+export const mapBoth = <A, B>([v1, v2]: [A, A], f: (v: A) => B): [B, B] => [
+  f(v1),
+  f(v2)
+];

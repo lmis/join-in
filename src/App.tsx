@@ -9,11 +9,11 @@ import "./styles.css";
 
 export default function App() {
   const constraints = useMemo(() => ({ audio: true, video: true }), []);
-  const [position, setPosition] = useState<Position>([430, 700]);
+  const [position, setPosition] = useState<Position>([430, 100]);
   // TODO: we don't need high res quality for all of these!
   const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
-    "https://czof1.sse.codesandbox.io/",
+    "https://ofk29.sse.codesandbox.io/",
     position,
     stream
   );
