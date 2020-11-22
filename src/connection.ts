@@ -57,7 +57,7 @@ const establishConnection = ({
   const connectionsByUserId = new Map<string, RTCPeerConnection>();
   const registeredSignals = new Set<Signal>();
 
-  console.log("connecting");
+  console.log("connecting to ", url);
   const socket = io(url, { transports: ["websocket"] }).connect();
   const send = <T>(signal: Signal, payload: T, silent?: boolean) => {
     if (!socket.connected) {

@@ -1,7 +1,7 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import React, { useState, useCallback } from "react";
 import { useUserMedia } from "webcam";
-import { Sketch } from "Sketch";
+import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement, MovementConfig } from "physics";
 import { KeyUpDownEvent, useKeyUpDown } from "keypress";
@@ -50,7 +50,7 @@ export default function App() {
   // TODO: we don't need high res quality for all of these!
   const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
-    "https://ofk29.sse.codesandbox.io/",
+    "https://rgtx5.sse.codesandbox.io/",
     positionRef,
     stream
   );
@@ -76,7 +76,7 @@ export default function App() {
           </div>
         </>
       )}
-      <Sketch positionRef={positionRef} others={others} stream={stream} />
+      <GameArea positionRef={positionRef} others={others} stream={stream} />
     </div>
   );
 }
