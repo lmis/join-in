@@ -1,23 +1,20 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, {
-  FC,
-  MutableRefObject,
-  useEffect,
-  useState,
-  useRef,
-  useCallback
-} from "react";
+import React, { FC, useRef, useCallback } from "react";
 
 import { UserData } from "connection";
 import { toVideoElement } from "webcam";
+import { useImage, useAnimation, useContext2D } from "render";
+import { useKeyDown } from "keypress";
+import { Position, clampRect } from "utils";
 
 interface Props {
-  position: [number, number];
-  setPosition: (position: [number, number]) => void;
+  position: Position;
+  setPosition: (position: Position) => void;
   others: UserData[];
   stream: MediaStream | null;
 }
 
+// TODO: express in terms of Positions
 const ballRadius = 50;
 const topBorder = 40;
 const leftBorder = 40;
@@ -26,83 +23,7 @@ const bottomBorder = 760;
 const canvasWidth = 800;
 const canvasHeight = 800;
 
-const useContext2D = (
-  canvasRef: MutableRefObject<HTMLCanvasElement | null>
-): CanvasRenderingContext2D | null => {
-  const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
-  useEffect(() => {
-    setCtx(canvasRef.current?.getContext("2d") ?? null);
-  }, [canvasRef]);
-
-  return ctx;
-};
-
-const drawContour = (ctx: CanvasRenderingContext2D) => {
-  ctx.beginPath();
-  ctx.moveTo(leftBorder, topBorder);
-  ctx.lineTo(rightBorder, topBorder);
-  ctx.lineTo(rightBorder, bottomBorder);
-  ctx.lineTo(leftBorder, bottomBorder);
-  ctx.closePath();
-  ctx.stroke();
-};
-
-const useAnimation = (onFrame: () => Promise<void>) => {
-  const requestRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const animate = async () => {
-      await onFrame();
-      requestRef.current = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-      }
-    };
-  }, [onFrame]);
-};
-
-const useEventListener = <K extends keyof DocumentEventMap>(
-  type: K,
-  onEvent: (e: DocumentEventMap[K]) => void
-) => {
-  useEffect(() => {
-    document.addEventListener(type, onEvent);
-    return () => {
-      document.removeEventListener(type, onEvent);
-    };
-  }, [type, onEvent]);
-};
-
-const loadImage = async (
-  url: string,
-  width?: number,
-  height?: number
-): Promise<HTMLImageElement> => {
-  return new Promise<HTMLImageElement>((resolve) => {
-    const image = new Image(width, height);
-    image.onload = () => resolve(image);
-    image.src = url;
-  });
-};
-
 declare const require: (url: string) => string;
-
-let office: HTMLImageElement | null = null;
-(async () => {
-  office = await loadImage(require("../public/assets/office.png"), 1000, 1000);
-})();
-
-let loudspeaker: HTMLImageElement | null = null;
-(async () => {
-  loudspeaker = await loadImage(
-    require("../public/assets/loudspeaker_grey.png"),
-    800,
-    600
-  );
-})();
 
 export const Sketch: FC<Props> = ({
   position,
@@ -110,10 +31,27 @@ export const Sketch: FC<Props> = ({
   stream,
   others
 }) => {
+  const background = useImage(
+    require("../public/assets/office.png"),
+    1000,
+    1000
+  );
+  // TODO: this could be extracted into useAudioIndication(stream) which would only return an image if the stream has sound
+  const audioIndication = useImage(
+    require("../public/assets/loudspeaker_grey.png"),
+    800,
+    600
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
-  const drawPlayers = useCallback(async () => {
+
+  const draw = useCallback(async () => {
+    if (ctx && background) {
+      ctx.drawImage(background, 0, 0, canvasWidth, canvasHeight);
+    }
     if (ctx && stream) {
+      // TODO: Flip positions for rendering only. Express everything with (0,0) = Bottom left
+      // TODO: Extract stuff here
       const [x, y] = position;
       const tmpCanvas = document.createElement("canvas");
       tmpCanvas.width = ctx.canvas.width;
@@ -146,17 +84,17 @@ export const Sketch: FC<Props> = ({
         );
       });
 
-      if (loudspeaker) {
+      if (audioIndication) {
         ctx.drawImage(
-          loudspeaker,
+          audioIndication,
           x - 3.2 * ballRadius,
           y - 2.3 * ballRadius,
-          (250 / loudspeaker.height) * loudspeaker.width,
+          (250 / audioIndication.height) * audioIndication.width,
           250
         );
       }
     }
-  }, [ctx, stream, others, position]);
+  }, [ctx, stream, others, position, audioIndication, background]);
 
   const onKeyDown = useCallback(
     (e: DocumentEventMap["keydown"]) => {
@@ -165,38 +103,37 @@ export const Sketch: FC<Props> = ({
       }
       const increment = 5;
       const [x, y] = position;
-      if (e.key === "Right" || e.key === "ArrowRight") {
-        const newX = Math.min(x + increment, rightBorder - ballRadius);
-        setPosition([newX, y]);
-      } else if (e.key === "Left" || e.key === "ArrowLeft") {
-        const newX = Math.max(x - increment, leftBorder + ballRadius);
-        setPosition([newX, y]);
-      } else if (e.key === "Up" || e.key === "ArrowUp") {
-        const newY = Math.max(y - increment, topBorder + ballRadius);
-        setPosition([x, newY]);
-      } else if (e.key === "Down" || e.key === "ArrowDown") {
-        const newY = Math.min(y + increment, bottomBorder - ballRadius);
-        setPosition([x, newY]);
-      }
+      // TODO: Support 'continious' controls
+      setPosition(
+        clampRect(
+          ((): Position => {
+            switch (e.key) {
+              case "Right":
+              case "ArrowRight":
+                return [x + increment, y];
+              case "Left":
+              case "ArrowLeft":
+                return [x - increment, y];
+              case "Up":
+              case "ArrowUp":
+                return [x, y - increment];
+              case "Down":
+              case "ArrowDown":
+                return [x, y + increment];
+              default:
+                return [x, y];
+            }
+          })(),
+          [leftBorder + ballRadius, topBorder + ballRadius],
+          [rightBorder - ballRadius, bottomBorder - ballRadius]
+        )
+      );
     },
-    [position, ctx]
+    [position, setPosition, ctx]
   );
 
-  useAnimation(drawPlayers);
-
-  useEffect(() => {
-    if (ctx && office) {
-      drawContour(ctx);
-      ctx.drawImage(office, 0, 0, canvasWidth, canvasHeight);
-    }
-    return () => {
-      if (ctx) {
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-      }
-    };
-  }, [ctx, position]);
-
-  useEventListener("keydown", onKeyDown);
+  useAnimation(draw);
+  useKeyDown(onKeyDown);
 
   return (
     <>

@@ -1,13 +1,16 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import React, { useState, useMemo } from "react";
-import { useUserMedia } from "./webcam";
+import { useUserMedia } from "webcam";
 import { Sketch } from "Sketch";
-import { useRemoteConnection } from "./connection";
+import { useRemoteConnection } from "connection";
+import { Position } from "utils";
+
 import "./styles.css";
 
 export default function App() {
   const constraints = useMemo(() => ({ audio: true, video: true }), []);
-  const [position, setPosition] = useState<[number, number]>([430, 700]);
+  const [position, setPosition] = useState<Position>([430, 700]);
+  // TODO: we don't need high res quality for all of these!
   const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
     "https://czof1.sse.codesandbox.io/",

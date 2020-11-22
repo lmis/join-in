@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import adapter from "webrtc-adapter";
 import io from "socket.io-client";
+import { Position } from "utils";
 
 enum Signals {
   HELLO_CLIENT = "hello-client",
@@ -31,13 +32,16 @@ interface ConnectionParams {
   onUserLeft: (userId: string) => void;
   onError: (userId: string, error: Error) => void;
   onStreams: (userId: string, streams: readonly MediaStream[]) => void;
-  onPositionUpdate: (userId: string, position: [number, number]) => void;
+  onPositionUpdate: (userId: string, position: Position) => void;
 }
 
 interface ConnectionReturn {
-  sendPositionUpdate: (position: [number, number]) => void;
+  sendPositionUpdate: (position: Position) => void;
   cleanUp: () => void;
 }
+
+const stringifyPayload = (payload?: object): string =>
+  payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : "";
 
 const establishConnection = ({
   url,
@@ -55,35 +59,39 @@ const establishConnection = ({
 
   console.log("connecting");
   const socket = io(url, { transports: ["websocket"] }).connect();
-  const send = <T>(signal: Signals, payload: T, silent?: boolean) => {
-    if (!silent) {
-      console.log(
-        `SEND ${signal} ${
-          payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : ""
-        }`
-      );
+  const send = <T extends object>(
+    signal: Signals,
+    payload: T,
+    silent?: boolean
+  ) => {
+    if (!socket.connected) {
+      if (!silent) {
+        console.log(
+          `NOT CONNECTED. CANNOT SEND ${signal} ${stringifyPayload(payload)}`
+        );
+      }
+    } else {
+      if (!silent) {
+        console.log(`SEND ${signal} ${stringifyPayload(payload)}`);
+      }
+      socket.emit(signal, payload);
     }
-    socket.emit(signal, payload);
   };
-  const receive = <T>(
+  const receive = <T extends object>(
     signal: Signals,
     handle: (payload: T) => void,
     silent?: boolean
   ) => {
     socket.on(signal, (payload: T) => {
       if (!silent) {
-        console.log(
-          `RECEIVE ${signal} ${
-            payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : ""
-          }`
-        );
+        console.log(`RECEIVE ${signal} ${stringifyPayload(payload)}`);
       }
       handle(payload);
     });
     registeredSignals.add(signal);
   };
 
-  const sendPositionUpdate = (position: [number, number]): void => {
+  const sendPositionUpdate = (position: Position): void => {
     send(Signals.POSITION_UPDATE, { position });
   };
 
@@ -122,13 +130,10 @@ const establishConnection = ({
     return peerConnection;
   };
 
-  receive<{ id: string; userIds: string[] }>(
-    Signals.HELLO_CLIENT,
-    ({ id, userIds }) => {
-      userIds.forEach(getOrMakeRTCPeerConnection);
-      onConnectionEstablished(id, userIds);
-    }
-  );
+  receive<{ userIds: string[] }>(Signals.HELLO_CLIENT, ({ userIds }) => {
+    userIds.forEach(getOrMakeRTCPeerConnection);
+    onConnectionEstablished(socket.id, userIds);
+  });
 
   receive<void>(Signals.MAX_USERS_REACHED, () => {
     onMaxUsersReached();
@@ -142,7 +147,7 @@ const establishConnection = ({
     onUserJoined(userId);
   });
 
-  receive<{ userId: string; position: [number, number] }>(
+  receive<{ userId: string; position: Position }>(
     Signals.POSITION_UPDATE,
     ({ userId, position }) => {
       onPositionUpdate(userId, position);
@@ -201,7 +206,7 @@ const establishConnection = ({
 
 export interface UserData {
   userId: string;
-  position?: [number, number];
+  position?: Position;
   streams?: readonly MediaStream[];
   error?: Error;
 }
@@ -214,14 +219,14 @@ export interface RemoteConnection {
 
 export const useRemoteConnection = (
   url: string,
-  position: [number, number],
+  position: Position,
   mediaStream: MediaStream | null
 ): RemoteConnection => {
   const [connectionId, setConnectionId] = useState<string | null>(null);
   const [maxUsersReached, setMaxUsersReached] = useState<boolean>(false);
   const [users, setUsers] = useState<UserData[]>([]);
   const [sendPositionUpdate, setSendPositionUpdate] = useState<
-    ((position: [number, number]) => void) | null
+    ((position: Position) => void) | null
   >(null);
 
   useEffect(() => {
