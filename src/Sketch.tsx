@@ -1,22 +1,14 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, {
-  FC,
-  useRef,
-  useCallback,
-  Dispatch,
-  SetStateAction
-} from "react";
+import React, { FC, useRef, RefObject, useCallback } from "react";
 
 import { UserData } from "connection";
 import { toVideoElement } from "webcam";
 import { useImage, useAnimation, useContext2D } from "render";
-import { useKeyDown } from "keypress";
-import { Position, clampRect, mapBoth } from "utils";
+import { Position } from "utils";
 declare const require: (url: string) => string;
 
 interface Props {
-  position: Position;
-  setPosition: Dispatch<SetStateAction<Position>>;
+  positionRef: RefObject<Position>;
   others: UserData[];
   stream: MediaStream | null;
 }
@@ -26,12 +18,6 @@ const canvasHeight = 800;
 const ballRadius = 50;
 const bottomLeft: Position = [40, 40];
 const topRight: Position = [760, 760];
-const constrainBall = (p: Position) =>
-  clampRect(
-    p,
-    mapBoth(bottomLeft, (c) => c + ballRadius),
-    mapBoth(topRight, (c) => c - ballRadius)
-  );
 
 const drawPlayer = (
   ctx: CanvasRenderingContext2D,
@@ -78,12 +64,7 @@ const drawPlayer = (
     250
   );
 };
-export const Sketch: FC<Props> = ({
-  position,
-  setPosition,
-  stream,
-  others
-}) => {
+export const Sketch: FC<Props> = ({ positionRef, stream, others }) => {
   const background = useImage(
     require("../public/assets/office.png"),
     1000,
@@ -98,7 +79,8 @@ export const Sketch: FC<Props> = ({
   const ctx = useContext2D(canvasRef);
 
   const draw = useCallback(async () => {
-    if (!ctx) {
+    const position = positionRef.current;
+    if (!ctx || !position) {
       return;
     }
     const { width, height } = ctx.canvas;
@@ -112,39 +94,9 @@ export const Sketch: FC<Props> = ({
         drawPlayer(ctx, streams![0], position, audioIndication, width, height);
       });
     }
-  }, [ctx, stream, others, position, audioIndication, background]);
-
-  const onKeyDown = useCallback(
-    (e: DocumentEventMap["keydown"]) => {
-      if (!ctx) {
-        return;
-      }
-      const increment = 5;
-      // TODO: Support 'continious' controls
-      setPosition(([x, y]) => {
-        switch (e.key) {
-          case "Right":
-          case "ArrowRight":
-            return constrainBall([x + increment, y]);
-          case "Left":
-          case "ArrowLeft":
-            return constrainBall([x - increment, y]);
-          case "Up":
-          case "ArrowUp":
-            return constrainBall([x, y + increment]);
-          case "Down":
-          case "ArrowDown":
-            return constrainBall([x, y - increment]);
-          default:
-            return [x, y];
-        }
-      });
-    },
-    [setPosition, ctx]
-  );
+  }, [ctx, stream, others, positionRef, audioIndication, background]);
 
   useAnimation(draw);
-  useKeyDown(onKeyDown);
 
   return (
     <>

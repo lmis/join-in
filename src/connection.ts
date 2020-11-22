@@ -1,8 +1,8 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import { useEffect, useState } from "react";
+import { useEffect, useState, RefObject } from "react";
 import adapter from "webrtc-adapter";
 import io from "socket.io-client";
-import { Position } from "utils";
+import { Position, positionFuzzyEqual } from "utils";
 
 enum Signal {
   HELLO_CLIENT = "hello-client",
@@ -59,11 +59,7 @@ const establishConnection = ({
 
   console.log("connecting");
   const socket = io(url, { transports: ["websocket"] }).connect();
-  const send = <T>(
-    signal: Signal,
-    payload: T,
-    silent?: boolean
-  ) => {
+  const send = <T>(signal: Signal, payload: T, silent?: boolean) => {
     if (!socket.connected) {
       if (!silent) {
         console.log(
@@ -91,8 +87,8 @@ const establishConnection = ({
     registeredSignals.add(signal);
   };
 
-  const sendPositionUpdate = (position: Position): void => {
-    send(Signal.POSITION_UPDATE, { position });
+  const sendPositionUpdate = ([x, y]: Position): void => {
+    send(Signal.POSITION_UPDATE, { position: [Math.round(x), Math.round(y)] });
   };
 
   const cleanUp = () => {
@@ -219,7 +215,7 @@ export interface RemoteConnection {
 
 export const useRemoteConnection = (
   url: string,
-  [x,y]: Position,
+  positionRef: RefObject<Position>,
   mediaStream: MediaStream | null
 ): RemoteConnection => {
   const [connectionId, setConnectionId] = useState<string | null>(null);
@@ -230,8 +226,19 @@ export const useRemoteConnection = (
   >(null);
 
   useEffect(() => {
-    sendPositionUpdate?.([x,y]);
-  }, [sendPositionUpdate, x,y]);
+    if (!positionRef.current || !sendPositionUpdate) {
+      return;
+    }
+    let prevPos: Position | null = null;
+    const id = setInterval(() => {
+      const position = positionRef.current;
+      if (position && (!prevPos || !positionFuzzyEqual(prevPos, position, 1))) {
+        prevPos = position;
+        sendPositionUpdate(position);
+      }
+    }, 200);
+    return () => clearInterval(id);
+  }, [sendPositionUpdate, positionRef]);
 
   useEffect(() => {
     if (!mediaStream) {
