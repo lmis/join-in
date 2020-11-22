@@ -22,19 +22,13 @@ const topRight: Position = [760, 760];
 const drawPlayer = (
   ctx: CanvasRenderingContext2D,
   stream: MediaStream,
-  position: Position,
-  audioIndication: HTMLImageElement,
-  width: number,
-  height: number
+  [x, y]: Position,
+  audioIndication: HTMLImageElement
 ) => {
-  // For game logic we consider bottom left to be [0,0]. However the canvas API considerd top left to be [0,0]
-  const x = position[0];
-  const y = height - position[1];
-
   // Create a canvas with a circular rendering shape
   const circleCanvas = document.createElement("canvas");
-  circleCanvas.width = width;
-  circleCanvas.height = height;
+  circleCanvas.width = canvasWidth;
+  circleCanvas.height = canvasHeight;
   const circleCtx = circleCanvas.getContext("2d")!;
   circleCtx.beginPath();
   circleCtx.arc(x, y, ballRadius, 0, Math.PI * 2);
@@ -64,6 +58,14 @@ const drawPlayer = (
     250
   );
 };
+
+const drawBackground = (
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  [x, y]: Position
+) => {
+  ctx.drawImage(image, x, y, image.width, image.height);
+};
 export const Sketch: FC<Props> = ({ positionRef, stream, others }) => {
   const background = useImage(
     require("../public/assets/office.png"),
@@ -83,16 +85,37 @@ export const Sketch: FC<Props> = ({ positionRef, stream, others }) => {
     if (!ctx || !position) {
       return;
     }
-    const { width, height } = ctx.canvas;
-    if (background) {
-      ctx.drawImage(background, 0, 0, width, height);
-    }
-    if (stream && audioIndication) {
-      drawPlayer(ctx, stream, position, audioIndication, width, height);
+
+    if (stream && audioIndication && background) {
+      const [xScaling, yScaling] = [
+        background.width / 800,
+        background.height / 800
+      ];
+
+      // In player space
+      const [xPlayer, yPlayer] = position;
+      const [xCanvas, yCanvas] = [200 / xScaling, background.height / yScaling];
+      const [xBackground, yBackground] = [
+        0 / xScaling,
+        background.height / yScaling
+      ];
+
+      const toCanvasSpace = ([x, y]: Position): Position => [
+        (x - xCanvas) * (background.width / 800),
+        (yCanvas - y) * (background.height / 800)
+      ];
+
+      drawBackground(
+        ctx,
+        background,
+        toCanvasSpace([xBackground, yBackground])
+      );
 
       others.forEach(({ streams, position = [0, 0] }) => {
-        drawPlayer(ctx, streams![0], position, audioIndication, width, height);
+        drawPlayer(ctx, streams![0], toCanvasSpace(position), audioIndication);
       });
+
+      drawPlayer(ctx, stream, toCanvasSpace(position), audioIndication);
     }
   }, [ctx, stream, others, positionRef, audioIndication, background]);
 
