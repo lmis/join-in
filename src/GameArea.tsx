@@ -2,7 +2,7 @@
 import React, { FC, useRef, RefObject, useCallback } from "react";
 
 import { UserData } from "connection";
-import { toVideoElement } from "webcam";
+import { toVideoElement, toSoundSource } from "webcam";
 import { useImage, useAnimation, useContext2D } from "render";
 import { Position } from "utils";
 declare const require: (url: string) => string;
@@ -50,13 +50,15 @@ const drawPlayer = (
   ctx.drawImage(circleCanvas, 0, 0);
 
   // Add audioIndication
-  ctx.drawImage(
-    audioIndication,
-    x - 3.2 * ballRadius,
-    y - 2.3 * ballRadius,
-    (250 / audioIndication.height) * audioIndication.width,
-    250
-  );
+  if (toSoundSource(stream).isSpeaking()) {
+    ctx.drawImage(
+      audioIndication,
+      x - 3.2 * ballRadius,
+      y - 2.3 * ballRadius,
+      (250 / audioIndication.height) * audioIndication.width,
+      250
+    );
+  }
 };
 
 const drawBackground = (
@@ -66,7 +68,8 @@ const drawBackground = (
 ) => {
   ctx.drawImage(image, x, y, image.width, image.height);
 };
-export const Sketch: FC<Props> = ({ positionRef, stream, others }) => {
+
+export const GameArea: FC<Props> = ({ positionRef, stream, others }) => {
   const background = useImage(
     require("../public/assets/office.png"),
     1000,

@@ -32,6 +32,44 @@ export const useUserMedia = (
   return { stream, error };
 };
 
+export interface SoundSource {
+  isSpeaking: () => boolean;
+  setOutputVolume: (x: number) => void;
+}
+
+// Creating building audio nodes is expensive, we keep a cache by stream.id
+const soundSourcesByStreamId = new Map<string, SoundSource>();
+const createSoundSource = (stream: MediaStream): SoundSource => {
+  const ctx = new AudioContext();
+  const analyzer = ctx.createAnalyser();
+  analyzer.minDecibels = -90;
+  analyzer.maxDecibels = -10;
+  analyzer.smoothingTimeConstant = 0.05;
+  analyzer.fftSize = 256;
+  const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
+  const outputGain = ctx.createGain();
+  outputGain.gain.value = 0;
+
+  const source = ctx.createMediaStreamSource(stream);
+  source.connect(analyzer).connect(outputGain).connect(ctx.destination);
+
+  const soundSource = {
+    isSpeaking: () => {
+      analyzer.getByteFrequencyData(dataArray);
+      const score = dataArray.reduce((acc, x) => acc + x, 0);
+      return score > 2000;
+    },
+    setOutputVolume: (x: number) => {
+      outputGain.gain.value = x;
+    }
+  };
+  soundSourcesByStreamId.set(stream.id, soundSource);
+  return soundSource;
+};
+export const toSoundSource = (stream: MediaStream): SoundSource =>
+  soundSourcesByStreamId.get(stream.id) ?? createSoundSource(stream);
+
 // Creating video elements and setting sources is expensive, we keep a cache by stream.id
 const videosByStreamId = new Map<string, HTMLVideoElement>();
 const createVideoElement = (stream: MediaStream): HTMLVideoElement => {
