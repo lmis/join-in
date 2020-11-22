@@ -87,6 +87,7 @@ export const Sketch: FC<Props> = ({ positionRef, stream, others }) => {
     }
 
     if (stream && audioIndication && background) {
+      // How many pixels is a position point worth?
       const [xScaling, yScaling] = [
         background.width / 800,
         background.height / 800
@@ -94,15 +95,25 @@ export const Sketch: FC<Props> = ({ positionRef, stream, others }) => {
 
       // In player space
       const [xPlayer, yPlayer] = position;
-      const [xCanvas, yCanvas] = [200 / xScaling, background.height / yScaling];
+      const leftIsTight = xPlayer < 360;
+      const rightIsTight = xPlayer > 500;
+
+      const [xCanvas, yCanvas] = [
+        leftIsTight
+          ? 0
+          : rightIsTight
+          ? 200
+          : xPlayer - canvasWidth / (2 * xScaling),
+        yPlayer + canvasHeight / (2 * yScaling)
+      ];
       const [xBackground, yBackground] = [
         0 / xScaling,
         background.height / yScaling
       ];
 
       const toCanvasSpace = ([x, y]: Position): Position => [
-        (x - xCanvas) * (background.width / 800),
-        (yCanvas - y) * (background.height / 800)
+        (x - xCanvas) * xScaling,
+        (yCanvas - y) * yScaling
       ];
 
       drawBackground(
