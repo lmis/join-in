@@ -3,7 +3,7 @@ import React, { useState, useCallback } from "react";
 import { useUserMedia } from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
-import { useMovement, MovementConfig } from "physics";
+import { useMovement, MovementConfig, Vector } from "physics";
 import { KeyUpDownEvent, useKeyUpDown } from "keypress";
 import { Position } from "utils";
 
@@ -19,8 +19,8 @@ const thrust = 900;
 
 const constraints = { audio: true, video: true };
 export default function App() {
-  const [acceleration, setAcceleration] = useState<Position>([0, 0]);
-  const positionRef = useMovement(acceleration, movementConfig);
+  const [acceleration, setAcceleration] = useState<Vector>([0, 0]);
+  const getPosition = useMovement(acceleration, movementConfig);
   const onKeyUpDown = useCallback(
     (e: KeyUpDownEvent, isDown) => {
       setAcceleration(([x, y]) => {
@@ -51,7 +51,7 @@ export default function App() {
   const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
     "https://rgtx5.sse.codesandbox.io/",
-    positionRef,
+    getPosition,
     stream
   );
   const others = users.filter((u) => u.streams);
@@ -76,7 +76,7 @@ export default function App() {
           </div>
         </>
       )}
-      <GameArea positionRef={positionRef} others={others} stream={stream} />
+      <GameArea getPosition={getPosition} others={others} stream={stream} />
     </div>
   );
 }

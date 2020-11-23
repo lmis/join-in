@@ -1,5 +1,5 @@
 export type Position = [number, number];
-export const inexhaustive = (x: never): void => {};
+export const inexhaustive = (_: never): void => {};
 
 export const wait = (millis: number) =>
   new Promise((resolve) => setTimeout(resolve, millis));

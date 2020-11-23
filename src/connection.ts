@@ -1,5 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import { useEffect, useState, RefObject } from "react";
+import { useEffect, useState, useRef } from "react";
 import adapter from "webrtc-adapter";
 import io from "socket.io-client";
 import { Position, positionFuzzyEqual } from "utils";
@@ -26,6 +26,8 @@ const config = {
 interface ConnectionParams {
   url: string;
   mediaStream: MediaStream;
+  positionUpdateInterval: number;
+  getPosition: () => Position;
   onConnectionEstablished: (id: string, userIds: string[]) => void;
   onMaxUsersReached: () => void;
   onUserJoined: (userId: string) => void;
@@ -35,17 +37,14 @@ interface ConnectionParams {
   onPositionUpdate: (userId: string, position: Position) => void;
 }
 
-interface ConnectionReturn {
-  sendPositionUpdate: (position: Position) => void;
-  cleanUp: () => void;
-}
-
 const stringifyPayload = <T>(payload?: T): string =>
   payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : "";
 
 const establishConnection = ({
   url,
   mediaStream,
+  positionUpdateInterval,
+  getPosition,
   onConnectionEstablished,
   onMaxUsersReached,
   onUserJoined,
@@ -53,9 +52,10 @@ const establishConnection = ({
   onError,
   onStreams,
   onPositionUpdate
-}: ConnectionParams): ConnectionReturn => {
+}: ConnectionParams): (() => void) => {
   const connectionsByUserId = new Map<string, RTCPeerConnection>();
   const registeredSignals = new Set<Signal>();
+  const intervalIds: number[] = [];
 
   console.log("connecting to ", url);
   const socket = io(url, { transports: ["websocket"] }).connect();
@@ -87,12 +87,9 @@ const establishConnection = ({
     registeredSignals.add(signal);
   };
 
-  const sendPositionUpdate = ([x, y]: Position): void => {
-    send(Signal.POSITION_UPDATE, { position: [Math.round(x), Math.round(y)] });
-  };
-
   const cleanUp = () => {
     console.log("disconnecting");
+    intervalIds.forEach(clearInterval);
     registeredSignals.forEach((s) => socket.off(s));
     socket.disconnect();
   };
@@ -129,6 +126,14 @@ const establishConnection = ({
   receive<{ userIds: string[] }>(Signal.HELLO_CLIENT, ({ userIds }) => {
     userIds.forEach(getOrMakeRTCPeerConnection);
     onConnectionEstablished(socket.id, userIds);
+    intervalIds.push(
+      setInterval(() => {
+        const [x, y] = getPosition();
+        send(Signal.POSITION_UPDATE, {
+          position: [Math.round(x), Math.round(y)]
+        });
+      }, positionUpdateInterval)
+    );
   });
 
   receive<void>(Signal.MAX_USERS_REACHED, () => {
@@ -194,10 +199,7 @@ const establishConnection = ({
     onUserLeft(userId);
   });
 
-  return {
-    sendPositionUpdate,
-    cleanUp
-  };
+  return cleanUp;
 };
 
 export interface UserData {
@@ -215,43 +217,26 @@ export interface RemoteConnection {
 
 export const useRemoteConnection = (
   url: string,
-  positionRef: RefObject<Position>,
+  getPosition: () => Position,
   mediaStream: MediaStream | null
 ): RemoteConnection => {
   const [connectionId, setConnectionId] = useState<string | null>(null);
   const [maxUsersReached, setMaxUsersReached] = useState<boolean>(false);
   const [users, setUsers] = useState<UserData[]>([]);
-  const [sendPositionUpdate, setSendPositionUpdate] = useState<
-    ((position: Position) => void) | null
-  >(null);
-
-  useEffect(() => {
-    if (!positionRef.current || !sendPositionUpdate) {
-      return;
-    }
-    let prevPos: Position | null = null;
-    const id = setInterval(() => {
-      const position = positionRef.current;
-      if (position && (!prevPos || !positionFuzzyEqual(prevPos, position, 1))) {
-        prevPos = position;
-        sendPositionUpdate(position);
-      }
-    }, 200);
-    return () => clearInterval(id);
-  }, [sendPositionUpdate, positionRef]);
 
   useEffect(() => {
     if (!mediaStream) {
       return;
     }
-
     const updateUser = (userId: string, update: Partial<UserData>) =>
       setUsers((xs) => [
         ...xs.map((u) => (u.userId !== userId ? u : { ...u, ...update }))
       ]);
-    const connection = establishConnection({
+    return establishConnection({
       url,
       mediaStream,
+      positionUpdateInterval: 200,
+      getPosition,
       onConnectionEstablished: (id, userIds) => {
         setConnectionId(id);
         setUsers(userIds.map((userId) => ({ userId })));
@@ -264,10 +249,7 @@ export const useRemoteConnection = (
       onStreams: (userId, streams) => updateUser(userId, { streams }),
       onPositionUpdate: (userId, position) => updateUser(userId, { position })
     });
-    setSendPositionUpdate(() => connection.sendPositionUpdate);
-
-    return connection.cleanUp;
-  }, [url, mediaStream]);
+  }, [url, mediaStream, getPosition]);
 
   return { connectionId, users, maxUsersReached };
 };

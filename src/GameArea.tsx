@@ -1,5 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { FC, useRef, RefObject, useCallback } from "react";
+import React, { FC, useRef, useCallback } from "react";
 
 import { UserData } from "connection";
 import { toVideoElement, toSoundSource } from "webcam";
@@ -8,7 +8,7 @@ import { Position } from "utils";
 declare const require: (url: string) => string;
 
 interface Props {
-  positionRef: RefObject<Position>;
+  getPosition: () => Position;
   others: UserData[];
   stream: MediaStream | null;
 }
@@ -69,7 +69,7 @@ const drawBackground = (
   ctx.drawImage(image, x, y, image.width, image.height);
 };
 
-export const GameArea: FC<Props> = ({ positionRef, stream, others }) => {
+export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
   const background = useImage(
     require("../public/assets/office.png"),
     1000,
@@ -84,12 +84,12 @@ export const GameArea: FC<Props> = ({ positionRef, stream, others }) => {
   const ctx = useContext2D(canvasRef);
 
   const draw = useCallback(async () => {
-    const position = positionRef.current;
-    if (!ctx || !position) {
+    if (!ctx) {
       return;
     }
 
     if (stream && audioIndication && background) {
+      const position = getPosition();
       // How many pixels is a position point worth?
       const [xScaling, yScaling] = [
         background.width / 800,
@@ -97,7 +97,7 @@ export const GameArea: FC<Props> = ({ positionRef, stream, others }) => {
       ];
 
       // In player space
-      const [xPlayer, yPlayer] = position;
+      const [xPlayer, yPlayer] = position
       const leftIsTight = xPlayer < 360;
       const rightIsTight = xPlayer > 500;
 
@@ -131,7 +131,7 @@ export const GameArea: FC<Props> = ({ positionRef, stream, others }) => {
 
       drawPlayer(ctx, stream, toCanvasSpace(position), audioIndication);
     }
-  }, [ctx, stream, others, positionRef, audioIndication, background]);
+  }, [ctx, stream, others, getPosition, audioIndication, background]);
 
   useAnimation(draw);
 

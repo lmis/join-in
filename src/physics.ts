@@ -1,16 +1,15 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import { useEffect, useState, useRef, Ref, MutableRefObject } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Position } from "utils";
 
 export interface MovementConfig {
   delta: number;
   friction: number;
   start: Position;
-  // TODO: Respect
   constraint: (p: Position) => boolean;
 }
 
-type Vector = [number, number];
+export type Vector = [number, number];
 const movement = (
   getAcceleration: () => Vector,
   setPosition: (p: Position) => void,
@@ -47,10 +46,12 @@ const movement = (
 export const useMovement = (
   acceleration: Vector,
   config: MovementConfig
-): MutableRefObject<Position> => {
+): (() => Position) => {
   // This stuff gets updated on the millisecond scale so we'd like to avoid rerendering.
   const positionRef = useRef<Position>(config.start);
   const accelerationRef = useRef<Vector>(acceleration);
+
+  const getPosition = useCallback(() => positionRef.current, [positionRef]);
 
   useEffect(() => {
     accelerationRef.current = acceleration;
@@ -67,5 +68,5 @@ export const useMovement = (
     return cleanup;
   }, [accelerationRef, config]);
 
-  return positionRef;
+  return getPosition;
 };
