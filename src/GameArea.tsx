@@ -97,17 +97,23 @@ export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
       ];
 
       // In player space
-      const [xPlayer, yPlayer] = position
-      const leftIsTight = xPlayer < 360;
-      const rightIsTight = xPlayer > 500;
+      const [xPlayer, yPlayer] = position;
+      const leftIsTight = xPlayer < canvasWidth / (2 * xScaling);
+      const rightIsTight = xPlayer > 800 - canvasWidth / (2 * xScaling);
+      const bottomIsTight = yPlayer < canvasWidth / (2 * yScaling);
+      const topIsTight = yPlayer > 800 - canvasHeight / (2 * yScaling);
 
       const [xCanvas, yCanvas] = [
         leftIsTight
           ? 0
           : rightIsTight
-          ? 200
+          ? 800 - canvasWidth / xScaling
           : xPlayer - canvasWidth / (2 * xScaling),
-        yPlayer + canvasHeight / (2 * yScaling)
+        bottomIsTight
+          ? canvasHeight / yScaling
+          : topIsTight
+          ? background.height / yScaling
+          : yPlayer + canvasHeight / (2 * yScaling)
       ];
       const [xBackground, yBackground] = [
         0 / xScaling,
