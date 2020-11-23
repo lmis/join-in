@@ -1,6 +1,15 @@
 import { MovementConfig } from "physics";
 
 export const signalingUrl = "https://rgtx5.sse.codesandbox.io/";
+export const positionUpdateInterval = 200;
+
+export const audioDectectionConfig = {
+  threshold: 2500,
+  fftSize: 256,
+  minDecibels: -90,
+  maxDecibels: -10,
+  smoothingTimeConstant: 0.05
+};
 
 export const gameBorders = {
   bottom: 0,

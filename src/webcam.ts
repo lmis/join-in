@@ -1,4 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
+import { audioDectectionConfig } from "config";
 import { useEffect, useState } from "react";
 import adapter from "webrtc-adapter";
 
@@ -42,10 +43,17 @@ const soundSourcesByStreamId = new Map<string, SoundSource>();
 const createSoundSource = (stream: MediaStream): SoundSource => {
   const ctx = new AudioContext();
   const analyzer = ctx.createAnalyser();
-  analyzer.minDecibels = -90;
-  analyzer.maxDecibels = -10;
-  analyzer.smoothingTimeConstant = 0.05;
-  analyzer.fftSize = 256;
+  const {
+    minDecibels,
+    maxDecibels,
+    smoothingTimeConstant,
+    fftSize,
+    threshold
+  } = audioDectectionConfig;
+  analyzer.minDecibels = minDecibels;
+  analyzer.maxDecibels = maxDecibels;
+  analyzer.smoothingTimeConstant = smoothingTimeConstant;
+  analyzer.fftSize = fftSize;
   const dataArray = new Uint8Array(analyzer.frequencyBinCount);
 
   const outputGain = ctx.createGain();
@@ -58,7 +66,7 @@ const createSoundSource = (stream: MediaStream): SoundSource => {
     isSpeaking: () => {
       analyzer.getByteFrequencyData(dataArray);
       const score = dataArray.reduce((acc, x) => acc + x, 0);
-      return score > 2000;
+      return score > threshold;
     },
     setOutputVolume: (x: number) => {
       outputGain.gain.value = x;

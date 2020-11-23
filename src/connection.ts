@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import adapter from "webrtc-adapter";
 import io from "socket.io-client";
-import { Position, positionFuzzyEqual } from "utils";
+import { Position } from "utils";
 
 enum Signal {
   HELLO_CLIENT = "hello-client",
@@ -126,12 +126,21 @@ const establishConnection = ({
   receive<{ userIds: string[] }>(Signal.HELLO_CLIENT, ({ userIds }) => {
     userIds.forEach(getOrMakeRTCPeerConnection);
     onConnectionEstablished(socket.id, userIds);
+    let prevPosition: Position | null = null;
     intervalIds.push(
       setInterval(() => {
         const [x, y] = getPosition();
-        send(Signal.POSITION_UPDATE, {
-          position: [Math.round(x), Math.round(y)]
-        });
+        const position: Position = [Math.round(x), Math.round(y)];
+        if (
+          !prevPosition ||
+          position[0] !== prevPosition[0] ||
+          position[1] !== prevPosition[1]
+        ) {
+          send(Signal.POSITION_UPDATE, {
+            position
+          });
+          prevPosition = position;
+        }
       }, positionUpdateInterval)
     );
   });
@@ -217,6 +226,7 @@ export interface RemoteConnection {
 
 export const useRemoteConnection = (
   url: string,
+  positionUpdateInterval: number,
   getPosition: () => Position,
   mediaStream: MediaStream | null
 ): RemoteConnection => {
@@ -235,7 +245,7 @@ export const useRemoteConnection = (
     return establishConnection({
       url,
       mediaStream,
-      positionUpdateInterval: 200,
+      positionUpdateInterval,
       getPosition,
       onConnectionEstablished: (id, userIds) => {
         setConnectionId(id);
@@ -249,7 +259,7 @@ export const useRemoteConnection = (
       onStreams: (userId, streams) => updateUser(userId, { streams }),
       onPositionUpdate: (userId, position) => updateUser(userId, { position })
     });
-  }, [url, mediaStream, getPosition]);
+  }, [url, mediaStream, positionUpdateInterval, getPosition]);
 
   return { connectionId, users, maxUsersReached };
 };

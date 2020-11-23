@@ -5,7 +5,12 @@ import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement, Vector } from "physics";
 import { KeyUpDownEvent, useKeyUpDown } from "keypress";
-import { movementConfig, signalingUrl, thrust } from "config";
+import {
+  movementConfig,
+  positionUpdateInterval,
+  signalingUrl,
+  thrust
+} from "config";
 
 import "./styles.css";
 
@@ -44,6 +49,7 @@ export default function App() {
   const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
     signalingUrl,
+    positionUpdateInterval,
     getPosition,
     stream
   );
