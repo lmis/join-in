@@ -29,18 +29,14 @@ export const useAnimation = (onFrame: () => Promise<void>) => {
   }, [onFrame]);
 };
 
-export const useImage = (
-  url: string,
-  width?: number,
-  height?: number
-): HTMLImageElement | null => {
+export const useImage = (url: string): HTMLImageElement | null => {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
-    const img = new Image(width, height);
+    const img = new Image();
     img.onload = () => setImage(img);
     img.src = url;
-  }, [url, width, height]);
+  }, [url]);
 
   return image;
 };

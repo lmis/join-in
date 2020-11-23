@@ -5,6 +5,7 @@ import { UserData } from "connection";
 import { toVideoElement, toSoundSource } from "webcam";
 import { useImage, useAnimation, useContext2D } from "render";
 import { Position } from "utils";
+import { canvasWidth, canvasHeight, gameBorders, playerRadius } from "config";
 declare const require: (url: string) => string;
 
 interface Props {
@@ -13,50 +14,60 @@ interface Props {
   stream: MediaStream | null;
 }
 
-const canvasWidth = 800;
-const canvasHeight = 800;
-const ballRadius = 50;
-const bottomLeft: Position = [40, 40];
-const topRight: Position = [760, 760];
-
-const drawPlayer = (
+const drawCircle = (
   ctx: CanvasRenderingContext2D,
-  stream: MediaStream,
+  image: CanvasImageSource,
+  imageWidth: number,
+  imageHeight: number,
   [x, y]: Position,
-  audioIndication: HTMLImageElement
+  radius: number
 ) => {
+  const diameter = radius * 2;
+
   // Create a canvas with a circular rendering shape
   const circleCanvas = document.createElement("canvas");
-  circleCanvas.width = canvasWidth;
-  circleCanvas.height = canvasHeight;
+  circleCanvas.width = diameter;
+  circleCanvas.height = diameter;
   const circleCtx = circleCanvas.getContext("2d")!;
   circleCtx.beginPath();
-  circleCtx.arc(x, y, ballRadius, 0, Math.PI * 2);
+  circleCtx.arc(radius, radius, radius, 0, Math.PI * 2);
   circleCtx.clip();
   circleCtx.closePath();
   circleCtx.restore();
 
-  // Draw video onto circular canvas
-  const video = toVideoElement(stream);
+  // Rescale and draw into cirecle
   circleCtx.drawImage(
-    video,
-    x - ballRadius,
-    y - ballRadius,
-    (100 / video.videoHeight) * video.videoWidth,
-    100
+    image,
+    0,
+    0,
+    (diameter / imageHeight) * imageWidth,
+    diameter
   );
 
   // Copy video circle onto main canvas
-  ctx.drawImage(circleCanvas, 0, 0);
+  ctx.drawImage(circleCanvas, x - radius, y - radius);
+};
+
+const drawPlayer = (
+  ctx: CanvasRenderingContext2D,
+  stream: MediaStream,
+  radius: number,
+  [x, y]: Position,
+  audioIndication: HTMLImageElement
+) => {
+  const video = toVideoElement(stream);
+  drawCircle(ctx, video, video.videoWidth, video.videoHeight, [x, y], radius);
 
   // Add audioIndication
   if (toSoundSource(stream).isSpeaking()) {
+    // How much larger to make the audio indication circle than the player circle
+    const stretch = 2;
     ctx.drawImage(
       audioIndication,
-      x - 3.2 * ballRadius,
-      y - 2.3 * ballRadius,
-      (250 / audioIndication.height) * audioIndication.width,
-      250
+      x - stretch * radius,
+      y - stretch * radius,
+      ((2 * stretch * radius) / audioIndication.height) * audioIndication.width,
+      2 * stretch * radius
     );
   }
 };
@@ -64,21 +75,16 @@ const drawPlayer = (
 const drawBackground = (
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
+  scale: number,
   [x, y]: Position
 ) => {
-  ctx.drawImage(image, x, y, image.width, image.height);
+  ctx.drawImage(image, x, y, scale * image.width, scale * image.height);
 };
 
 export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
-  const background = useImage(
-    require("../public/assets/office.png"),
-    1000,
-    1000
-  );
+  const background = useImage(require("../public/assets/office.png"));
   const audioIndication = useImage(
-    require("../public/assets/loudspeaker_grey.png"),
-    800,
-    600
+    require("../public/assets/audio-indication.png")
   );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
@@ -89,53 +95,71 @@ export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
     }
 
     if (stream && audioIndication && background) {
-      const position = getPosition();
-      // How many pixels is a position point worth?
-      const [xScaling, yScaling] = [
-        background.width / 800,
-        background.height / 800
+      const scale = 0.75;
+      const [xScale, yScale] = [
+        (gameBorders.right - gameBorders.left) / (background.width * scale),
+        (gameBorders.top - gameBorders.bottom) / (background.height * scale)
+      ];
+      const scalePixelsToGameSpace = ([x, y]: Position): Position => [
+        x * xScale,
+        y * yScale
       ];
 
-      // In player space
+      const [viewWidth, viewHeight] = scalePixelsToGameSpace([
+        canvasWidth,
+        canvasHeight
+      ]);
+
+      const position = getPosition();
       const [xPlayer, yPlayer] = position;
-      const leftIsTight = xPlayer < canvasWidth / (2 * xScaling);
-      const rightIsTight = xPlayer > 800 - canvasWidth / (2 * xScaling);
-      const bottomIsTight = yPlayer < canvasWidth / (2 * yScaling);
-      const topIsTight = yPlayer > 800 - canvasHeight / (2 * yScaling);
+      const leftIsTight = xPlayer < gameBorders.left + viewWidth / 2;
+      const rightIsTight = xPlayer > gameBorders.right - viewWidth / 2;
+      const bottomIsTight = yPlayer < gameBorders.bottom + viewHeight / 2;
+      const topIsTight = yPlayer > gameBorders.top - viewHeight / 2;
+
 
       const [xCanvas, yCanvas] = [
         leftIsTight
-          ? 0
+          ? gameBorders.left
           : rightIsTight
-          ? 800 - canvasWidth / xScaling
-          : xPlayer - canvasWidth / (2 * xScaling),
+          ? gameBorders.right - viewWidth
+          : xPlayer - viewWidth / 2,
         bottomIsTight
-          ? canvasHeight / yScaling
+          ? gameBorders.bottom + viewHeight
           : topIsTight
-          ? background.height / yScaling
-          : yPlayer + canvasHeight / (2 * yScaling)
-      ];
-      const [xBackground, yBackground] = [
-        0 / xScaling,
-        background.height / yScaling
+          ? gameBorders.top
+          : yPlayer + viewHeight / 2
       ];
 
-      const toCanvasSpace = ([x, y]: Position): Position => [
-        (x - xCanvas) * xScaling,
-        (yCanvas - y) * yScaling
+      const transformPositionToPixelSpace = ([x, y]: Position): Position => [
+        (x - xCanvas) / xScale,
+        (yCanvas - y) / yScale
       ];
 
       drawBackground(
         ctx,
         background,
-        toCanvasSpace([xBackground, yBackground])
+        scale,
+        transformPositionToPixelSpace([gameBorders.left, gameBorders.top])
       );
 
       others.forEach(({ streams, position = [0, 0] }) => {
-        drawPlayer(ctx, streams![0], toCanvasSpace(position), audioIndication);
+        drawPlayer(
+          ctx,
+          streams![0],
+          playerRadius * scale,
+          transformPositionToPixelSpace(position),
+          audioIndication
+        );
       });
 
-      drawPlayer(ctx, stream, toCanvasSpace(position), audioIndication);
+      drawPlayer(
+        ctx,
+        stream,
+        playerRadius * scale,
+        transformPositionToPixelSpace(position),
+        audioIndication
+      );
     }
   }, [ctx, stream, others, getPosition, audioIndication, background]);
 

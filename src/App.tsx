@@ -3,21 +3,14 @@ import React, { useState, useCallback } from "react";
 import { useUserMedia } from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
-import { useMovement, MovementConfig, Vector } from "physics";
+import { useMovement, Vector } from "physics";
 import { KeyUpDownEvent, useKeyUpDown } from "keypress";
-import { Position } from "utils";
+import { movementConfig, signalingUrl, thrust } from "config";
 
 import "./styles.css";
 
-const movementConfig: MovementConfig = {
-  delta: 0.05,
-  friction: 0.2,
-  start: [430, 100],
-  constraint: ([x, y]) => x >= 90 && x <= 710 && y >= 90 && y <= 720
-};
-const thrust = 900;
-
 const constraints = { audio: true, video: true };
+
 export default function App() {
   const [acceleration, setAcceleration] = useState<Vector>([0, 0]);
   const getPosition = useMovement(acceleration, movementConfig);
@@ -50,7 +43,7 @@ export default function App() {
   // TODO: we don't need high res quality for all of these!
   const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
-    "https://rgtx5.sse.codesandbox.io/",
+    signalingUrl,
     getPosition,
     stream
   );
