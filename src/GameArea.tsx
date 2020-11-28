@@ -6,10 +6,12 @@ import { toVideoElement, toSoundSource } from "webcam";
 import { useImage, useAnimation, useContext2D } from "render";
 import { Position } from "utils";
 import { canvasWidth, canvasHeight, gameBorders, playerRadius } from "config";
+import { Vector } from "physics";
 declare const require: (url: string) => string;
 
 interface Props {
   getPosition: () => Position;
+  getAngle: () => number;
   others: UserData[];
   stream: MediaStream | null;
 }
@@ -50,11 +52,25 @@ const drawCircle = (
 
 const drawPlayer = (
   ctx: CanvasRenderingContext2D,
-  stream: MediaStream,
+  stream: MediaStream | null,
   radius: number,
   [x, y]: Position,
+  angle: number,
   audioIndication: HTMLImageElement
 ) => {
+  if (!stream) {
+    ctx.save();
+
+    ctx.translate(x + 5, y + 50);
+    ctx.rotate(angle);
+    ctx.translate(-(x + 5), -(y + 50));
+    ctx.fillStyle = "blue";
+    ctx.fillRect(x, y - 40, 10, 40);
+    ctx.fillStyle = "red";
+    ctx.fillRect(x, y, 10, 60);
+    ctx.restore();
+    return;
+  }
   const video = toVideoElement(stream);
   drawCircle(ctx, video, video.videoWidth, video.videoHeight, [x, y], radius);
 
@@ -81,7 +97,12 @@ const drawBackground = (
   ctx.drawImage(image, x, y, scale * image.width, scale * image.height);
 };
 
-export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
+export const GameArea: FC<Props> = ({
+  getPosition,
+  getAngle,
+  stream,
+  others
+}) => {
   const background = useImage(require("../public/assets/office.png"));
   const audioIndication = useImage(
     require("../public/assets/audio-indication.png")
@@ -94,7 +115,7 @@ export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
       return;
     }
 
-    if (stream && audioIndication && background) {
+    if (audioIndication && background) {
       const scale = 0.75;
       const [xScale, yScale] = [
         (gameBorders.right - gameBorders.left) / (background.width * scale),
@@ -111,12 +132,12 @@ export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
       ]);
 
       const position = getPosition();
+      const angle = getAngle();
       const [xPlayer, yPlayer] = position;
       const leftIsTight = xPlayer < gameBorders.left + viewWidth / 2;
       const rightIsTight = xPlayer > gameBorders.right - viewWidth / 2;
       const bottomIsTight = yPlayer < gameBorders.bottom + viewHeight / 2;
       const topIsTight = yPlayer > gameBorders.top - viewHeight / 2;
-
 
       const [xCanvas, yCanvas] = [
         leftIsTight
@@ -146,9 +167,10 @@ export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
       others.forEach(({ streams, position = [0, 0] }) => {
         drawPlayer(
           ctx,
-          streams![0],
+          streams?.[0] ?? null,
           playerRadius * scale,
           transformPositionToPixelSpace(position),
+          angle,
           audioIndication
         );
       });
@@ -158,10 +180,11 @@ export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
         stream,
         playerRadius * scale,
         transformPositionToPixelSpace(position),
+        angle,
         audioIndication
       );
     }
-  }, [ctx, stream, others, getPosition, audioIndication, background]);
+  }, [ctx, stream, others, getPosition, getAngle, audioIndication, background]);
 
   useAnimation(draw);
 

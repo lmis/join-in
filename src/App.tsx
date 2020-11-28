@@ -18,7 +18,7 @@ const constraints = { audio: true, video: true };
 
 export default function App() {
   const [acceleration, setAcceleration] = useState<Vector>([0, 0]);
-  const getPosition = useMovement(acceleration, movementConfig);
+  const { getPosition, getAngle } = useMovement(acceleration, movementConfig);
   const onKeyUpDown = useCallback(
     (e: KeyUpDownEvent, isDown) => {
       setAcceleration(([x, y]) => {
@@ -75,7 +75,12 @@ export default function App() {
           </div>
         </>
       )}
-      <GameArea getPosition={getPosition} others={others} stream={stream} />
+      <GameArea
+        getPosition={getPosition}
+        getAngle={getAngle}
+        others={others}
+        stream={stream}
+      />
     </div>
   );
 }
