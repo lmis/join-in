@@ -34,4 +34,4 @@ export const movementConfig: MovementConfig = {
     y <= gameBorders.top - playerRadius - wallThickness
 };
 
-export const thrust = 900;
+export const defaultThrust = 900;

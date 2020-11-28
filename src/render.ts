@@ -1,5 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import { MutableRefObject, useEffect, useState, useRef } from "react";
+import { MutableRefObject, useEffect, useState, useRef, useMemo } from "react";
 
 export const useContext2D = (
   canvasRef: MutableRefObject<HTMLCanvasElement | null>
@@ -12,12 +12,14 @@ export const useContext2D = (
   return ctx;
 };
 
-export const useAnimation = (onFrame: () => Promise<void>) => {
+export const useAnimation = (
+  onFrame: (frameNumber: number) => Promise<void>
+) => {
   const requestRef = useRef<number | null>(null);
 
   useEffect(() => {
     const animate = async () => {
-      await onFrame();
+      await onFrame(requestRef.current ?? 0);
       requestRef.current = requestAnimationFrame(animate);
     };
     animate();
@@ -29,14 +31,22 @@ export const useAnimation = (onFrame: () => Promise<void>) => {
   }, [onFrame]);
 };
 
-export const useImage = (url: string): HTMLImageElement | null => {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+export const useImages = (urls: string[]): HTMLImageElement[] | null => {
+  const [images, setImages] = useState<HTMLImageElement[] | null>(null);
 
   useEffect(() => {
-    const img = new Image();
-    img.onload = () => setImage(img);
-    img.src = url;
-  }, [url]);
+    urls.forEach((url) => {
+      const img = new Image();
+      img.onload = () => {
+        setImages((xs) => (xs ? [...xs, img] : [img]));
+      };
+      img.src = url;
+    });
+  }, [urls]);
+  return images;
+};
 
-  return image;
+export const useImage = (url: string): HTMLImageElement | null => {
+  const urls = useMemo(() => [url], [url]);
+  return useImages(urls)?.[0] ?? null;
 };

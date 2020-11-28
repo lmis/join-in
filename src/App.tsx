@@ -9,7 +9,7 @@ import {
   movementConfig,
   positionUpdateInterval,
   signalingUrl,
-  thrust
+  defaultThrust
 } from "config";
 
 import "./styles.css";
@@ -17,11 +17,16 @@ import "./styles.css";
 const constraints = { audio: true, video: true };
 
 export default function App() {
+  const { stream, error } = useUserMedia(constraints);
   const [acceleration, setAcceleration] = useState<Vector>([0, 0]);
-  const { getPosition, getAngle } = useMovement(acceleration, movementConfig);
+  const { getPosition, getAngle, getSpeed } = useMovement(
+    acceleration,
+    movementConfig
+  );
   const onKeyUpDown = useCallback(
     (e: KeyUpDownEvent, isDown) => {
       setAcceleration(([x, y]) => {
+        const thrust = stream ? defaultThrust : defaultThrust * 0.1;
         switch (e.key) {
           case "Right":
           case "ArrowRight":
@@ -40,13 +45,11 @@ export default function App() {
         }
       });
     },
-    [setAcceleration]
+    [setAcceleration, stream]
   );
 
   useKeyUpDown(onKeyUpDown);
 
-  // TODO: we don't need high res quality for all of these!
-  const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
     signalingUrl,
     positionUpdateInterval,
@@ -78,6 +81,7 @@ export default function App() {
       <GameArea
         getPosition={getPosition}
         getAngle={getAngle}
+        getSpeed={getSpeed}
         others={others}
         stream={stream}
       />

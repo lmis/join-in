@@ -12,6 +12,7 @@ export interface MovementConfig {
 export interface MovementOutput {
   getPosition: () => Position;
   getAngle: () => number;
+  getSpeed: () => number;
 }
 
 export type Vector = [number, number];
@@ -57,10 +58,12 @@ export const useMovement = (
   // This stuff gets updated on the millisecond scale so we'd like to avoid rerendering.
   const positionRef = useRef<Position>(config.start);
   const angleRef = useRef<number>(0);
+  const speedRef = useRef<number>(0);
   const accelerationRef = useRef<Vector>(acceleration);
 
   const getPosition = useCallback(() => positionRef.current, [positionRef]);
   const getAngle = useCallback(() => angleRef.current, [angleRef]);
+  const getSpeed = useCallback(() => speedRef.current, [speedRef]);
 
   useEffect(() => {
     accelerationRef.current = acceleration;
@@ -76,11 +79,12 @@ export const useMovement = (
         if (x !== 0 || y !== 0) {
           angleRef.current = Math.atan2(x, y);
         }
+        speedRef.current = Math.sqrt(x * x + y * y);
       },
       config
     );
     return cleanup;
   }, [accelerationRef, config]);
 
-  return { getPosition, getAngle };
+  return { getPosition, getAngle, getSpeed };
 };
