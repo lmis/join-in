@@ -70,15 +70,15 @@ export default function App() {
 
   return (
     <div className="App">
-      {error ? (
-        <>
-          <h2>Cannot get webcam access.</h2>
-          <p>Error: {error}</p>
-        </>
+      {!error && !stream ? (
+        <h2>Waiting for webcam...</h2>
       ) : (
         <>
           <h2>Users</h2>
-          <div>You ({connectionId})</div>
+          <div>
+            You ({connectionId ?? "No connection"}){" "}
+            {error && `(No camera: ${error})`}
+          </div>
           <div>
             {others.map((u) => (
               <div key={u.userId}>
@@ -87,15 +87,15 @@ export default function App() {
               </div>
             ))}
           </div>
+          <GameArea
+            getPosition={getPosition}
+            getAngle={getAngle}
+            getSpeed={getSpeed}
+            others={others}
+            stream={stream}
+          />
         </>
       )}
-      <GameArea
-        getPosition={getPosition}
-        getAngle={getAngle}
-        getSpeed={getSpeed}
-        others={others}
-        stream={stream}
-      />
     </div>
   );
 }
