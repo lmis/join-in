@@ -1,5 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useUserMedia } from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
@@ -25,25 +25,35 @@ export default function App() {
   );
   const onKeyUpDown = useCallback(
     (e: KeyUpDownEvent, isDown) => {
-      setAcceleration(([x, y]) => {
-        const thrust = stream ? defaultThrust : defaultThrust * 0.1;
-        switch (e.key) {
-          case "Right":
-          case "ArrowRight":
-            return isDown ? [thrust, y] : [0, y];
-          case "Left":
-          case "ArrowLeft":
-            return isDown ? [-thrust, y] : [0, y];
-          case "Up":
-          case "ArrowUp":
-            return isDown ? [x, thrust] : [x, 0];
-          case "Down":
-          case "ArrowDown":
-            return isDown ? [x, -thrust] : [x, 0];
-          default:
-            return [x, y];
-        }
-      });
+      // Avoid setting acc to new array with same content to avoid unnecessary rerenders
+      const keepOrigIfSame = (f: (acc: Vector) => Vector) => (
+        acc: Vector
+      ): Vector => {
+        const [x, y] = acc;
+        const [newX, newY] = f(acc);
+        return x === newX && y === newY ? acc : [newX, newY];
+      };
+      setAcceleration(
+        keepOrigIfSame(([x, y]) => {
+          const thrust = stream ? defaultThrust : defaultThrust * 0.1;
+          switch (e.key) {
+            case "Right":
+            case "ArrowRight":
+              return isDown ? [thrust, y] : [0, y];
+            case "Left":
+            case "ArrowLeft":
+              return isDown ? [-thrust, y] : [0, y];
+            case "Up":
+            case "ArrowUp":
+              return isDown ? [x, thrust] : [x, 0];
+            case "Down":
+            case "ArrowDown":
+              return isDown ? [x, -thrust] : [x, 0];
+            default:
+              return [x, y];
+          }
+        })
+      );
     },
     [setAcceleration, stream]
   );
@@ -56,13 +66,14 @@ export default function App() {
     getPosition,
     stream
   );
-  const others = users.filter((u) => u.streams);
+  const others = useMemo(() => users.filter((u) => u.streams), [users]);
+
   return (
     <div className="App">
       {error ? (
         <>
           <h2>Cannot get webcam access.</h2>
-          <p>Error: {error.message}</p>
+          <p>Error: {error}</p>
         </>
       ) : (
         <>

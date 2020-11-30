@@ -5,14 +5,14 @@ import adapter from "webrtc-adapter";
 
 export interface UserMedia {
   stream: MediaStream | null;
-  error: Error | null;
+  error: string | null;
 }
 
 export const useUserMedia = (
   constraints: MediaStreamConstraints
 ): UserMedia => {
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const id = setInterval(async () => {
@@ -24,7 +24,7 @@ export const useUserMedia = (
         setError(null);
       } catch (e) {
         setStream(null);
-        setError(e);
+        setError(e.message);
       }
     }, 1000);
     return () => clearInterval(id);

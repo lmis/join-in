@@ -1,5 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { FC, useRef, useCallback } from "react";
+import React, { FC, useRef, useCallback, useEffect } from "react";
 
 import { UserData } from "connection";
 import { toVideoElement, toSoundSource } from "webcam";
@@ -69,7 +69,7 @@ const drawPlayer = (
         ? sloths[
             Math.round(frameNumber / animationFramesPerImage) % sloths.length
           ]
-        : sloths[2];
+        : sloths[0];
     const stretch = 2;
     ctx.save();
     // Move the origin to the picture's center
@@ -113,7 +113,7 @@ const drawBackground = (
   ctx.drawImage(image, x, y, scale * image.width, scale * image.height);
 };
 
-const slothUrls = [1, 2, 3, 4, 5, 4, 3, 2].map((i) =>
+const slothUrls = [3, 2, 1, 2, 3, 4, 5, 4].map((i) =>
   require(`../public/assets/sloth${i}.png`)
 );
 
@@ -221,6 +221,7 @@ export const GameArea: FC<Props> = ({
       others,
       getPosition,
       getAngle,
+      getSpeed,
       audioIndication,
       background,
       sloths

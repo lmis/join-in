@@ -35,13 +35,20 @@ export const useImages = (urls: string[]): HTMLImageElement[] | null => {
   const [images, setImages] = useState<HTMLImageElement[] | null>(null);
 
   useEffect(() => {
-    urls.forEach((url) => {
+    urls.forEach((url, i) => {
       const img = new Image();
       img.onload = () => {
-        setImages((xs) => (xs ? [...xs, img] : [img]));
+        setImages((xs) => {
+          const res = xs ? [...xs] : [];
+          res[i] = img;
+          return res;
+        });
       };
       img.src = url;
     });
+    return () => {
+      setImages(null);
+    };
   }, [urls]);
   return images;
 };
