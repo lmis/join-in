@@ -1,5 +1,6 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import { MutableRefObject, useEffect, useState, useRef, useMemo } from "react";
+declare const require: (url: string) => string;
 
 export const useContext2D = (
   canvasRef: MutableRefObject<HTMLCanvasElement | null>
@@ -31,11 +32,11 @@ export const useAnimation = (
   }, [onFrame]);
 };
 
-export const useImages = (urls: string[]): HTMLImageElement[] | null => {
+export const useAssets = (names: string[]): HTMLImageElement[] | null => {
   const [images, setImages] = useState<HTMLImageElement[] | null>(null);
 
   useEffect(() => {
-    urls.forEach((url, i) => {
+    names.forEach((name, i) => {
       const img = new Image();
       img.onload = () => {
         setImages((xs) => {
@@ -44,16 +45,16 @@ export const useImages = (urls: string[]): HTMLImageElement[] | null => {
           return res;
         });
       };
-      img.src = url;
+      img.src = require("../public/assets/" + name);
     });
     return () => {
       setImages(null);
     };
-  }, [urls]);
+  }, [names]);
   return images;
 };
 
-export const useImage = (url: string): HTMLImageElement | null => {
-  const urls = useMemo(() => [url], [url]);
-  return useImages(urls)?.[0] ?? null;
+export const useAsset = (name: string): HTMLImageElement | null => {
+  const names = useMemo(() => [name], [name]);
+  return useAssets(names)?.[0] ?? null;
 };

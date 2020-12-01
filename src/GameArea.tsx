@@ -1,13 +1,12 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { FC, useRef, useCallback, useEffect } from "react";
+import React, { FC, useRef, useCallback } from "react";
 
 import { UserData } from "connection";
 import { toVideoElement, toSoundSource } from "webcam";
-import { useImage, useAnimation, useContext2D, useImages } from "render";
+import { useAssets, useAsset, useAnimation, useContext2D } from "render";
+import { drawCircle, drawRotated } from "draw";
 import { Position, roundTo } from "utils";
 import { canvasWidth, canvasHeight, gameBorders, playerRadius } from "config";
-import { Vector } from "physics";
-declare const require: (url: string) => string;
 
 interface Props {
   getPosition: () => Position;
@@ -17,52 +16,19 @@ interface Props {
   stream: MediaStream | null;
 }
 
-const drawCircle = (
-  ctx: CanvasRenderingContext2D,
-  image: CanvasImageSource,
-  imageWidth: number,
-  imageHeight: number,
-  [x, y]: Position,
-  radius: number
-) => {
-  const diameter = radius * 2;
-
-  // Create a canvas with a circular rendering shape
-  const circleCanvas = document.createElement("canvas");
-  circleCanvas.width = diameter;
-  circleCanvas.height = diameter;
-  const circleCtx = circleCanvas.getContext("2d")!;
-  circleCtx.beginPath();
-  circleCtx.arc(radius, radius, radius, 0, Math.PI * 2);
-  circleCtx.clip();
-  circleCtx.closePath();
-  circleCtx.restore();
-
-  // Rescale and draw into cirecle
-  circleCtx.drawImage(
-    image,
-    0,
-    0,
-    (diameter / imageHeight) * imageWidth,
-    diameter
-  );
-
-  // Copy video circle onto main canvas
-  ctx.drawImage(circleCanvas, x - radius, y - radius);
-};
-
 const drawPlayer = (
   frameNumber: number,
   ctx: CanvasRenderingContext2D,
   stream: MediaStream | null,
   radius: number,
-  [x, y]: Position,
+  p: Position,
   angle: number,
   speed: number,
   audioIndication: HTMLImageElement,
   sloths: HTMLImageElement[]
 ) => {
   if (!stream) {
+    const height = 4 * radius;
     const animationFramesPerImage = 10;
     const sloth =
       roundTo(speed, 1) > 0
@@ -70,36 +36,29 @@ const drawPlayer = (
             Math.round(frameNumber / animationFramesPerImage) % sloths.length
           ]
         : sloths[0];
-    const stretch = 2;
-    ctx.save();
-    // Move the origin to the picture's center
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    // Move the origin back to its starting point
-    ctx.translate(-x, -y);
-    ctx.drawImage(
+    drawRotated(
+      ctx,
       sloth,
-      x - stretch * radius,
-      y - stretch * radius,
-      (2 * stretch * radius * sloth.width) / sloth.height,
-      2 * stretch * radius
+      height * (sloth.width / sloth.height),
+      height,
+      angle,
+      p
     );
-    ctx.restore();
     return;
   }
   const video = toVideoElement(stream);
-  drawCircle(ctx, video, video.videoWidth, video.videoHeight, [x, y], radius);
+  drawCircle(ctx, video, video.videoWidth, video.videoHeight, p, radius);
 
   // Add audioIndication
   if (toSoundSource(stream).isSpeaking()) {
-    // How much larger to make the audio indication circle than the player circle
-    const stretch = 2;
-    ctx.drawImage(
+    const height = 4 * radius;
+    drawRotated(
+      ctx,
       audioIndication,
-      x - stretch * radius,
-      y - stretch * radius,
-      ((2 * stretch * radius) / audioIndication.height) * audioIndication.width,
-      2 * stretch * radius
+      height * (audioIndication.width / audioIndication.height),
+      height,
+      0,
+      p
     );
   }
 };
@@ -113,9 +72,7 @@ const drawBackground = (
   ctx.drawImage(image, x, y, scale * image.width, scale * image.height);
 };
 
-const slothUrls = [3, 2, 1, 2, 3, 4, 5, 4].map((i) =>
-  require(`../public/assets/sloth${i}.png`)
-);
+const slothAssets = [3, 2, 1, 2, 3, 4, 5, 4].map((i) => `sloth${i}.png`);
 
 export const GameArea: FC<Props> = ({
   getPosition,
@@ -124,11 +81,9 @@ export const GameArea: FC<Props> = ({
   stream,
   others
 }) => {
-  const background = useImage(require("../public/assets/office.png"));
-  const audioIndication = useImage(
-    require("../public/assets/audio-indication.png")
-  );
-  const sloths = useImages(slothUrls);
+  const background = useAsset("office.png");
+  const audioIndication = useAsset("audio-indication.png");
+  const sloths = useAssets(slothAssets);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
 
