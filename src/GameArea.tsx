@@ -1,15 +1,18 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { FC, useRef, useCallback } from "react";
+import React, { FC, useRef, useCallback, useEffect } from "react";
 
 import { UserData } from "connection";
 import { toVideoElement, toSoundSource } from "webcam";
-import { useImage, useAnimation, useContext2D } from "render";
-import { Position } from "utils";
+import { useImage, useAnimation, useContext2D, useImages } from "render";
+import { Position, roundTo } from "utils";
 import { canvasWidth, canvasHeight, gameBorders, playerRadius } from "config";
+import { Vector } from "physics";
 declare const require: (url: string) => string;
 
 interface Props {
   getPosition: () => Position;
+  getAngle: () => number;
+  getSpeed: () => number;
   others: UserData[];
   stream: MediaStream | null;
 }
@@ -49,12 +52,41 @@ const drawCircle = (
 };
 
 const drawPlayer = (
+  frameNumber: number,
   ctx: CanvasRenderingContext2D,
-  stream: MediaStream,
+  stream: MediaStream | null,
   radius: number,
   [x, y]: Position,
-  audioIndication: HTMLImageElement
+  angle: number,
+  speed: number,
+  audioIndication: HTMLImageElement,
+  sloths: HTMLImageElement[]
 ) => {
+  if (!stream) {
+    const animationFramesPerImage = 10;
+    const sloth =
+      roundTo(speed, 1) > 0
+        ? sloths[
+            Math.round(frameNumber / animationFramesPerImage) % sloths.length
+          ]
+        : sloths[0];
+    const stretch = 2;
+    ctx.save();
+    // Move the origin to the picture's center
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    // Move the origin back to its starting point
+    ctx.translate(-x, -y);
+    ctx.drawImage(
+      sloth,
+      x - stretch * radius,
+      y - stretch * radius,
+      (2 * stretch * radius * sloth.width) / sloth.height,
+      2 * stretch * radius
+    );
+    ctx.restore();
+    return;
+  }
   const video = toVideoElement(stream);
   drawCircle(ctx, video, video.videoWidth, video.videoHeight, [x, y], radius);
 
@@ -81,87 +113,120 @@ const drawBackground = (
   ctx.drawImage(image, x, y, scale * image.width, scale * image.height);
 };
 
-export const GameArea: FC<Props> = ({ getPosition, stream, others }) => {
+const slothUrls = [3, 2, 1, 2, 3, 4, 5, 4].map((i) =>
+  require(`../public/assets/sloth${i}.png`)
+);
+
+export const GameArea: FC<Props> = ({
+  getPosition,
+  getAngle,
+  getSpeed,
+  stream,
+  others
+}) => {
   const background = useImage(require("../public/assets/office.png"));
   const audioIndication = useImage(
     require("../public/assets/audio-indication.png")
   );
+  const sloths = useImages(slothUrls);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
 
-  const draw = useCallback(async () => {
-    if (!ctx) {
-      return;
-    }
+  const draw = useCallback(
+    async (frameNumber: number) => {
+      if (!ctx) {
+        return;
+      }
 
-    if (stream && audioIndication && background) {
-      const scale = 0.75;
-      const [xScale, yScale] = [
-        (gameBorders.right - gameBorders.left) / (background.width * scale),
-        (gameBorders.top - gameBorders.bottom) / (background.height * scale)
-      ];
-      const scalePixelsToGameSpace = ([x, y]: Position): Position => [
-        x * xScale,
-        y * yScale
-      ];
+      if (audioIndication && background && sloths) {
+        const scale = 0.75;
+        const [xScale, yScale] = [
+          (gameBorders.right - gameBorders.left) / (background.width * scale),
+          (gameBorders.top - gameBorders.bottom) / (background.height * scale)
+        ];
+        const scalePixelsToGameSpace = ([x, y]: Position): Position => [
+          x * xScale,
+          y * yScale
+        ];
 
-      const [viewWidth, viewHeight] = scalePixelsToGameSpace([
-        canvasWidth,
-        canvasHeight
-      ]);
+        const [viewWidth, viewHeight] = scalePixelsToGameSpace([
+          canvasWidth,
+          canvasHeight
+        ]);
 
-      const position = getPosition();
-      const [xPlayer, yPlayer] = position;
-      const leftIsTight = xPlayer < gameBorders.left + viewWidth / 2;
-      const rightIsTight = xPlayer > gameBorders.right - viewWidth / 2;
-      const bottomIsTight = yPlayer < gameBorders.bottom + viewHeight / 2;
-      const topIsTight = yPlayer > gameBorders.top - viewHeight / 2;
+        const position = getPosition();
+        const angle = getAngle();
+        const speed = getSpeed();
+        const [xPlayer, yPlayer] = position;
+        const leftIsTight = xPlayer < gameBorders.left + viewWidth / 2;
+        const rightIsTight = xPlayer > gameBorders.right - viewWidth / 2;
+        const bottomIsTight = yPlayer < gameBorders.bottom + viewHeight / 2;
+        const topIsTight = yPlayer > gameBorders.top - viewHeight / 2;
 
+        const [xCanvas, yCanvas] = [
+          leftIsTight
+            ? gameBorders.left
+            : rightIsTight
+            ? gameBorders.right - viewWidth
+            : xPlayer - viewWidth / 2,
+          bottomIsTight
+            ? gameBorders.bottom + viewHeight
+            : topIsTight
+            ? gameBorders.top
+            : yPlayer + viewHeight / 2
+        ];
 
-      const [xCanvas, yCanvas] = [
-        leftIsTight
-          ? gameBorders.left
-          : rightIsTight
-          ? gameBorders.right - viewWidth
-          : xPlayer - viewWidth / 2,
-        bottomIsTight
-          ? gameBorders.bottom + viewHeight
-          : topIsTight
-          ? gameBorders.top
-          : yPlayer + viewHeight / 2
-      ];
+        const transformPositionToPixelSpace = ([x, y]: Position): Position => [
+          (x - xCanvas) / xScale,
+          (yCanvas - y) / yScale
+        ];
 
-      const transformPositionToPixelSpace = ([x, y]: Position): Position => [
-        (x - xCanvas) / xScale,
-        (yCanvas - y) / yScale
-      ];
-
-      drawBackground(
-        ctx,
-        background,
-        scale,
-        transformPositionToPixelSpace([gameBorders.left, gameBorders.top])
-      );
-
-      others.forEach(({ streams, position = [0, 0] }) => {
-        drawPlayer(
+        drawBackground(
           ctx,
-          streams![0],
+          background,
+          scale,
+          transformPositionToPixelSpace([gameBorders.left, gameBorders.top])
+        );
+
+        others.forEach(({ streams, position = [0, 0] }) => {
+          drawPlayer(
+            frameNumber,
+            ctx,
+            streams?.[0] ?? null,
+            playerRadius * scale,
+            transformPositionToPixelSpace(position),
+            angle,
+            speed,
+            audioIndication,
+            sloths
+          );
+        });
+
+        drawPlayer(
+          frameNumber,
+          ctx,
+          stream,
           playerRadius * scale,
           transformPositionToPixelSpace(position),
-          audioIndication
+          angle,
+          speed,
+          audioIndication,
+          sloths
         );
-      });
-
-      drawPlayer(
-        ctx,
-        stream,
-        playerRadius * scale,
-        transformPositionToPixelSpace(position),
-        audioIndication
-      );
-    }
-  }, [ctx, stream, others, getPosition, audioIndication, background]);
+      }
+    },
+    [
+      ctx,
+      stream,
+      others,
+      getPosition,
+      getAngle,
+      getSpeed,
+      audioIndication,
+      background,
+      sloths
+    ]
+  );
 
   useAnimation(draw);
 

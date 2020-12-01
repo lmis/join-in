@@ -1,6 +1,6 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import { useEffect, useRef, useCallback } from "react";
-import { Position } from "utils";
+import { Position, roundTo } from "utils";
 
 export interface MovementConfig {
   delta: number;
@@ -9,10 +9,17 @@ export interface MovementConfig {
   constraint: (p: Position) => boolean;
 }
 
+export interface MovementOutput {
+  getPosition: () => Position;
+  getAngle: () => number;
+  getSpeed: () => number;
+}
+
 export type Vector = [number, number];
 const movement = (
   getAcceleration: () => Vector,
   setPosition: (p: Position) => void,
+  setVelocity: (v: Vector) => void,
   { start, delta, friction, constraint }: MovementConfig
 ): (() => void) => {
   let position = start;
@@ -34,6 +41,7 @@ const movement = (
       velocity = nextVel;
       acceleration = nextAcc;
       setPosition(nextPos);
+      setVelocity(nextVel);
     } else {
       velocity = [0, 0];
       acceleration = [0, 0];
@@ -46,12 +54,16 @@ const movement = (
 export const useMovement = (
   acceleration: Vector,
   config: MovementConfig
-): (() => Position) => {
+): MovementOutput => {
   // This stuff gets updated on the millisecond scale so we'd like to avoid rerendering.
   const positionRef = useRef<Position>(config.start);
+  const angleRef = useRef<number>(0);
+  const speedRef = useRef<number>(0);
   const accelerationRef = useRef<Vector>(acceleration);
 
   const getPosition = useCallback(() => positionRef.current, [positionRef]);
+  const getAngle = useCallback(() => angleRef.current, [angleRef]);
+  const getSpeed = useCallback(() => speedRef.current, [speedRef]);
 
   useEffect(() => {
     accelerationRef.current = acceleration;
@@ -63,10 +75,16 @@ export const useMovement = (
       (p) => {
         positionRef.current = p;
       },
+      ([x, y]) => {
+        if (x !== 0 || y !== 0) {
+          angleRef.current = Math.atan2(x, y);
+        }
+        speedRef.current = Math.sqrt(x * x + y * y);
+      },
       config
     );
     return cleanup;
   }, [accelerationRef, config]);
 
-  return getPosition;
+  return { getPosition, getAngle, getSpeed };
 };

@@ -1,5 +1,5 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useUserMedia } from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
@@ -9,7 +9,7 @@ import {
   movementConfig,
   positionUpdateInterval,
   signalingUrl,
-  thrust
+  defaultThrust
 } from "config";
 
 import "./styles.css";
@@ -17,54 +17,68 @@ import "./styles.css";
 const constraints = { audio: true, video: true };
 
 export default function App() {
+  const { stream, error } = useUserMedia(constraints);
   const [acceleration, setAcceleration] = useState<Vector>([0, 0]);
-  const getPosition = useMovement(acceleration, movementConfig);
+  const { getPosition, getAngle, getSpeed } = useMovement(
+    acceleration,
+    movementConfig
+  );
   const onKeyUpDown = useCallback(
     (e: KeyUpDownEvent, isDown) => {
-      setAcceleration(([x, y]) => {
-        switch (e.key) {
-          case "Right":
-          case "ArrowRight":
-            return isDown ? [thrust, y] : [0, y];
-          case "Left":
-          case "ArrowLeft":
-            return isDown ? [-thrust, y] : [0, y];
-          case "Up":
-          case "ArrowUp":
-            return isDown ? [x, thrust] : [x, 0];
-          case "Down":
-          case "ArrowDown":
-            return isDown ? [x, -thrust] : [x, 0];
-          default:
-            return [x, y];
-        }
-      });
+      // Avoid setting acc to new array with same content to avoid unnecessary rerenders
+      const keepOrigIfSame = (f: (acc: Vector) => Vector) => (
+        acc: Vector
+      ): Vector => {
+        const [x, y] = acc;
+        const [newX, newY] = f(acc);
+        return x === newX && y === newY ? acc : [newX, newY];
+      };
+      setAcceleration(
+        keepOrigIfSame(([x, y]) => {
+          const thrust = stream ? defaultThrust : defaultThrust * 0.1;
+          switch (e.key) {
+            case "Right":
+            case "ArrowRight":
+              return isDown ? [thrust, y] : [0, y];
+            case "Left":
+            case "ArrowLeft":
+              return isDown ? [-thrust, y] : [0, y];
+            case "Up":
+            case "ArrowUp":
+              return isDown ? [x, thrust] : [x, 0];
+            case "Down":
+            case "ArrowDown":
+              return isDown ? [x, -thrust] : [x, 0];
+            default:
+              return [x, y];
+          }
+        })
+      );
     },
-    [setAcceleration]
+    [setAcceleration, stream]
   );
 
   useKeyUpDown(onKeyUpDown);
 
-  // TODO: we don't need high res quality for all of these!
-  const { stream, error } = useUserMedia(constraints);
   const { users, connectionId } = useRemoteConnection(
     signalingUrl,
     positionUpdateInterval,
     getPosition,
     stream
   );
-  const others = users.filter((u) => u.streams);
+  const others = useMemo(() => users.filter((u) => u.streams), [users]);
+
   return (
     <div className="App">
-      {error ? (
-        <>
-          <h2>Cannot get webcam access.</h2>
-          <p>Error: {error.message}</p>
-        </>
+      {!error && !stream ? (
+        <h2>Waiting for webcam...</h2>
       ) : (
         <>
           <h2>Users</h2>
-          <div>You ({connectionId})</div>
+          <div>
+            You ({connectionId ?? "No connection"}){" "}
+            {error && `(No camera: ${error})`}
+          </div>
           <div>
             {others.map((u) => (
               <div key={u.userId}>
@@ -73,9 +87,15 @@ export default function App() {
               </div>
             ))}
           </div>
+          <GameArea
+            getPosition={getPosition}
+            getAngle={getAngle}
+            getSpeed={getSpeed}
+            others={others}
+            stream={stream}
+          />
         </>
       )}
-      <GameArea getPosition={getPosition} others={others} stream={stream} />
     </div>
   );
 }
