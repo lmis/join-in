@@ -20,7 +20,7 @@ export const gameBorders = {
 
 export const audioDistanceSettings = {
   intensityFactor: 800 * 800,
-  scalingFactor: 2
+  scalingFactor: 1
 };
 
 export const canvasWidth = 800;
