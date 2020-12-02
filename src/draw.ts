@@ -53,15 +53,25 @@ export const drawCircle = ({
   circleCtx.beginPath();
   circleCtx.arc(radius, radius, radius, 0, Math.PI * 2);
   circleCtx.clip();
-  circleCtx.closePath();
-  circleCtx.restore();
 
+  // Rescale, crop and draw into cirecle
+  const size = Math.min(imageWidth, imageHeight);
+  const excessHeight = Math.max(0, imageHeight - size);
+  const excessWidth = Math.max(0, imageWidth - size);
   // Rescale and draw into cirecle
   circleCtx.drawImage(
     image,
+    // Offset in original image
+    excessWidth / 2,
+    excessHeight / 2,
+    // Crop in original image
+    size,
+    size,
+    // Position in circle canvas
     0,
     0,
-    (diameter / imageHeight) * imageWidth,
+    // Size in circle canvas
+    diameter,
     diameter
   );
 
