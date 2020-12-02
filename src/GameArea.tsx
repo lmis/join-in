@@ -2,7 +2,7 @@
 import React, { FC, useRef, useCallback } from "react";
 
 import { UserData } from "connection";
-import { toVideoElement, toSoundSource } from "webcam";
+import { toVideoElement, toSoundSource, hasVideo, hasAudio } from "webcam";
 import { useAssets, useAsset, useAnimation, useContext2D } from "render";
 import { drawCircle, drawImage } from "draw";
 import { distanceSquared, Position, roundTo } from "utils";
@@ -30,6 +30,7 @@ const drawPlayer = ({
   position,
   angle,
   audioIndication,
+  muted,
   placeholders
 }: {
   frameNumber: number;
@@ -40,9 +41,23 @@ const drawPlayer = ({
   position: Position;
   angle: number;
   audioIndication: HTMLImageElement;
+  muted: HTMLImageElement;
   placeholders: HTMLImageElement[];
 }) => {
-  if (!stream) {
+  if (stream && hasVideo(stream)) {
+    const video = toVideoElement(stream);
+    drawCircle({
+      ctx,
+      alpha: 1,
+      angle: 0,
+      flipped,
+      image: video,
+      imageWidth: video.videoWidth,
+      imageHeight: video.videoHeight,
+      position,
+      radius
+    });
+  } else {
     const height = 4 * radius;
     const animationFramesPerImage = 10;
     const placeholder =
@@ -59,35 +74,36 @@ const drawPlayer = ({
       angle,
       position
     });
-    return;
   }
-  const video = toVideoElement(stream);
-  drawCircle({
-    ctx,
-    alpha: 1,
-    angle: 0,
-    flipped,
-    image: video,
-    imageWidth: video.videoWidth,
-    imageHeight: video.videoHeight,
-    position,
-    radius
-  });
 
-  // Add audioIndication
-  const speakingIntensity = toSoundSource(stream).getSpeakingIntensity();
-  if (speakingIntensity > 1) {
-    const alpha = speakingIntensity - 1;
-    const height = 4 * radius;
+  if (stream && hasAudio(stream)) {
+    const speakingIntensity = toSoundSource(stream).getSpeakingIntensity();
+    if (speakingIntensity > 1) {
+      const alpha = speakingIntensity - 1;
+      const height = 4 * radius;
+      drawImage({
+        ctx,
+        alpha,
+        flipped: false,
+        image: audioIndication,
+        width: height * (audioIndication.width / audioIndication.height),
+        height,
+        angle: 0,
+        position
+      });
+    }
+  } else {
+    const height = radius;
+    const [x, y] = position;
     drawImage({
       ctx,
-      alpha,
-      flipped: false,
-      image: audioIndication,
-      width: height * (audioIndication.width / audioIndication.height),
-      height,
+      alpha: 1,
       angle: 0,
-      position
+      flipped: false,
+      image: muted,
+      width: height * (muted.width / muted.height),
+      height,
+      position: [x + radius, y + radius]
     });
   }
 };
@@ -106,6 +122,7 @@ const slothAssets = [3, 2, 1, 2, 3, 4, 5, 4].map((i) => `sloth${i}.png`);
 export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
   const background = useAsset("office.png");
   const audioIndication = useAsset("audio-indication.png");
+  const muted = useAsset("muted.png");
   const sloths = useAssets(slothAssets);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctx = useContext2D(canvasRef);
@@ -116,7 +133,7 @@ export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
         return;
       }
 
-      if (audioIndication && background && sloths) {
+      if (audioIndication && background && sloths && muted) {
         const scale = 0.75;
         const [xScale, yScale] = [
           (gameBorders.right - gameBorders.left) / (background.width * scale),
@@ -166,12 +183,11 @@ export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
 
         others.forEach((other) => {
           const otherMovement = other.movement ?? null;
-          const otherStream = other.streams?.[0] ?? null;
-          const otherAngle = 0;
+          const otherStream = other.audioStreams?.[0] ?? null;
           if (!otherMovement) {
             return;
           }
-          if (otherStream) {
+          if (otherStream && hasAudio(otherStream)) {
             const { intensityFactor, scalingFactor } = audioDistanceSettings;
             toSoundSource(otherStream).setOutputVolume(
               Math.min(
@@ -184,12 +200,13 @@ export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
           drawPlayer({
             frameNumber,
             ctx,
-            stream: otherStream,
+            stream,
             flipped: true,
             radius: playerRadius * scale,
             position: transformPositionToPixelSpace(otherMovement.position),
             angle: otherMovement.angle,
             audioIndication,
+            muted,
             placeholders:
               roundTo(otherMovement.speed, 1) > 0 ? sloths : [sloths[0]]
           });
@@ -204,11 +221,21 @@ export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
           position: transformPositionToPixelSpace(position),
           angle,
           audioIndication,
+          muted,
           placeholders: roundTo(speed, 1) > 0 ? sloths : [sloths[0]]
         });
       }
     },
-    [ctx, stream, others, getMovement, audioIndication, background, sloths]
+    [
+      ctx,
+      stream,
+      others,
+      getMovement,
+      audioIndication,
+      background,
+      sloths,
+      muted
+    ]
   );
 
   useAnimation(draw);
