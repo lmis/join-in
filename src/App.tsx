@@ -1,6 +1,12 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import React, { useEffect } from "react";
-import { hasAudio, hasVideo, toStreamControl, useUserMedia } from "webcam";
+import {
+  hasAudio,
+  hasVideo,
+  setEnabled,
+  toStreamControl,
+  useUserMedia
+} from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement } from "physics";
@@ -30,11 +36,11 @@ export default function App() {
     if (stream) {
       setTimeout(() => {
         console.log("OFF");
-        toStreamControl(stream).setVideoEnabled(false);
+        setEnabled("video", false, stream);
       }, 1000);
       setTimeout(() => {
         console.log("ON");
-        toStreamControl(stream).setVideoEnabled(true);
+        setEnabled("video", true, stream);
       }, 3000);
     }
   }, [stream]);
