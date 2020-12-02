@@ -98,8 +98,26 @@ const createVideoElement = (stream: MediaStream): HTMLVideoElement => {
 export const toVideoElement = (stream: MediaStream): HTMLVideoElement =>
   videosByStreamId.get(stream.id) ?? createVideoElement(stream);
 
+export interface StreamControl {
+  setAudioEnabled: (enabled: boolean) => void;
+  setVideoEnabled: (enabled: boolean) => void;
+}
+
+export const toStreamControl = (stream: MediaStream): StreamControl => ({
+  setAudioEnabled: (enabled) => {
+    stream.getAudioTracks().forEach((t) => {
+      t.enabled = enabled;
+    });
+  },
+  setVideoEnabled: (enabled) => {
+    stream.getVideoTracks().forEach((t) => {
+      t.enabled = enabled;
+    });
+  }
+});
+
 export const hasVideo = (stream: MediaStream): boolean =>
-  stream.getVideoTracks().length !== 0;
+  stream.getVideoTracks().filter((t) => t.enabled).length !== 0;
 
 export const hasAudio = (stream: MediaStream): boolean =>
-  stream.getAudioTracks().length !== 0;
+  stream.getAudioTracks().filter((t) => t.enabled).length !== 0;

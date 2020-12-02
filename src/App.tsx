@@ -1,6 +1,6 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React from "react";
-import { hasAudio, hasVideo, useUserMedia } from "webcam";
+import React, { useEffect } from "react";
+import { hasAudio, hasVideo, toStreamControl, useUserMedia } from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement } from "physics";
@@ -24,6 +24,20 @@ export default function App() {
     stream && hasVideo(stream) ? defaultThrust : 0.1 * defaultThrust
   );
   const getMovement = useMovement(acceleration, movementConfig);
+
+  // TODO: Use this to make buttons :)
+  useEffect(() => {
+    if (stream) {
+      setTimeout(() => {
+        console.log("OFF");
+        toStreamControl(stream).setVideoEnabled(false);
+      }, 1000);
+      setTimeout(() => {
+        console.log("ON");
+        toStreamControl(stream).setVideoEnabled(true);
+      }, 3000);
+    }
+  }, [stream]);
 
   const { users, connectionId } = useRemoteConnection(
     signalingUrl,
