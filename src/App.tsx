@@ -1,6 +1,6 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { useMemo } from "react";
-import { useUserMedia } from "webcam";
+import React from "react";
+import { hasAudio, hasVideo, useUserMedia } from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement } from "physics";
@@ -14,12 +14,12 @@ import {
 
 import "./styles.css";
 
-const constraints = { audio: true, video: true };
+const userMediaConstraints = { audio: true, video: true };
 
 export default function App() {
-  const { stream, error } = useUserMedia(constraints);
+  const { stream, error } = useUserMedia(userMediaConstraints);
   const { acceleration } = useMovementControl(
-    stream ? defaultThrust : 0.1 * defaultThrust
+    stream && hasVideo(stream) ? defaultThrust : 0.1 * defaultThrust
   );
   const getMovement = useMovement(acceleration, movementConfig);
 
@@ -30,16 +30,21 @@ export default function App() {
     stream
   );
 
+  const isWaiting = !error && !stream;
+  const videoReady = stream && hasVideo(stream);
+  const audioReady = stream && hasAudio(stream);
+
   return (
     <div className="App">
-      {!error && !stream ? (
+      {isWaiting ? (
         <h2>Waiting for webcam...</h2>
       ) : (
         <>
           <h2>Users</h2>
           <div>
             You ({connectionId ?? "No connection"}){" "}
-            {error && `(No camera: ${error})`}
+            {!videoReady && `(No camera: ${error})`}{" "}
+            {!audioReady && `(No microphone: ${error})`}
           </div>
           <div>
             {users.map((u) => (
@@ -50,11 +55,7 @@ export default function App() {
               </div>
             ))}
           </div>
-          <GameArea
-            getMovement={getMovement}
-            others={users}
-            stream={stream}
-          />
+          <GameArea stream={stream} getMovement={getMovement} others={users} />
         </>
       )}
     </div>

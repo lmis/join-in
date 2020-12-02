@@ -97,3 +97,9 @@ const createVideoElement = (stream: MediaStream): HTMLVideoElement => {
 
 export const toVideoElement = (stream: MediaStream): HTMLVideoElement =>
   videosByStreamId.get(stream.id) ?? createVideoElement(stream);
+
+export const hasVideo = (stream: MediaStream): boolean =>
+  stream.getVideoTracks().length !== 0;
+
+export const hasAudio = (stream: MediaStream): boolean =>
+  stream.getAudioTracks().length !== 0;
