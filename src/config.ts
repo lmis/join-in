@@ -1,14 +1,14 @@
 import { MovementConfig } from "physics";
 
-export const signalingUrl = "https://rgtx5.sse.codesandbox.io/";
+export const signalingUrl = "https://czof1.sse.codesandbox.io/";
 export const positionUpdateInterval = 200;
 
 export const audioDectectionConfig = {
-  threshold: 2500,
+  speakingBaseScore: 2000,
   fftSize: 256,
   minDecibels: -90,
   maxDecibels: -10,
-  smoothingTimeConstant: 0.05
+  smoothingTimeConstant: 0.1
 };
 
 export const gameBorders = {
@@ -16,6 +16,11 @@ export const gameBorders = {
   top: 800,
   left: 0,
   right: 800
+};
+
+export const audioDistanceSettings = {
+  intensityFactor: 800 * 800,
+  scalingFactor: 2
 };
 
 export const canvasWidth = 800;

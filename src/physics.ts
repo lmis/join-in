@@ -1,6 +1,6 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
 import { useEffect, useRef, useCallback } from "react";
-import { Position, roundTo } from "utils";
+import { Position } from "utils";
 
 export interface MovementConfig {
   delta: number;
@@ -9,10 +9,10 @@ export interface MovementConfig {
   constraint: (p: Position) => boolean;
 }
 
-export interface MovementOutput {
-  getPosition: () => Position;
-  getAngle: () => number;
-  getSpeed: () => number;
+export interface Movement {
+  position: Position;
+  angle: number;
+  speed: number;
 }
 
 export type Vector = [number, number];
@@ -54,16 +54,21 @@ const movement = (
 export const useMovement = (
   acceleration: Vector,
   config: MovementConfig
-): MovementOutput => {
+): (() => Movement) => {
   // This stuff gets updated on the millisecond scale so we'd like to avoid rerendering.
   const positionRef = useRef<Position>(config.start);
   const angleRef = useRef<number>(0);
   const speedRef = useRef<number>(0);
   const accelerationRef = useRef<Vector>(acceleration);
 
-  const getPosition = useCallback(() => positionRef.current, [positionRef]);
-  const getAngle = useCallback(() => angleRef.current, [angleRef]);
-  const getSpeed = useCallback(() => speedRef.current, [speedRef]);
+  const getMovement = useCallback(
+    () => ({
+      position: positionRef.current,
+      angle: angleRef.current,
+      speed: speedRef.current
+    }),
+    [positionRef, angleRef, speedRef]
+  );
 
   useEffect(() => {
     accelerationRef.current = acceleration;
@@ -86,5 +91,5 @@ export const useMovement = (
     return cleanup;
   }, [accelerationRef, config]);
 
-  return { getPosition, getAngle, getSpeed };
+  return getMovement;
 };

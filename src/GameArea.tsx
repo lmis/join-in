@@ -4,62 +4,91 @@ import React, { FC, useRef, useCallback } from "react";
 import { UserData } from "connection";
 import { toVideoElement, toSoundSource } from "webcam";
 import { useAssets, useAsset, useAnimation, useContext2D } from "render";
-import { drawCircle, drawRotated } from "draw";
-import { Position, roundTo } from "utils";
-import { canvasWidth, canvasHeight, gameBorders, playerRadius } from "config";
+import { drawCircle, drawImage } from "draw";
+import { distanceSquared, Position, roundTo } from "utils";
+import {
+  canvasWidth,
+  canvasHeight,
+  gameBorders,
+  playerRadius,
+  audioDistanceSettings
+} from "config";
+import { Movement } from "physics";
 
 interface Props {
-  getPosition: () => Position;
-  getAngle: () => number;
-  getSpeed: () => number;
+  getMovement: () => Movement;
   others: UserData[];
   stream: MediaStream | null;
 }
 
-const drawPlayer = (
-  frameNumber: number,
-  ctx: CanvasRenderingContext2D,
-  stream: MediaStream | null,
-  radius: number,
-  p: Position,
-  angle: number,
-  speed: number,
-  audioIndication: HTMLImageElement,
-  sloths: HTMLImageElement[]
-) => {
+const drawPlayer = ({
+  frameNumber,
+  ctx,
+  stream,
+  flipped,
+  radius,
+  position,
+  angle,
+  audioIndication,
+  placeholders
+}: {
+  frameNumber: number;
+  ctx: CanvasRenderingContext2D;
+  stream: MediaStream | null;
+  flipped: boolean;
+  radius: number;
+  position: Position;
+  angle: number;
+  audioIndication: HTMLImageElement;
+  placeholders: HTMLImageElement[];
+}) => {
   if (!stream) {
     const height = 4 * radius;
     const animationFramesPerImage = 10;
-    const sloth =
-      roundTo(speed, 1) > 0
-        ? sloths[
-            Math.round(frameNumber / animationFramesPerImage) % sloths.length
-          ]
-        : sloths[0];
-    drawRotated(
+    const placeholder =
+      placeholders[
+        Math.round(frameNumber / animationFramesPerImage) % placeholders.length
+      ];
+    drawImage({
       ctx,
-      sloth,
-      height * (sloth.width / sloth.height),
+      alpha: 1,
+      flipped: false,
+      image: placeholder,
+      width: height * (placeholder.width / placeholder.height),
       height,
       angle,
-      p
-    );
+      position
+    });
     return;
   }
   const video = toVideoElement(stream);
-  drawCircle(ctx, video, video.videoWidth, video.videoHeight, p, radius);
+  drawCircle({
+    ctx,
+    alpha: 1,
+    angle: 0,
+    flipped,
+    image: video,
+    imageWidth: video.videoWidth,
+    imageHeight: video.videoHeight,
+    position,
+    radius
+  });
 
   // Add audioIndication
-  if (toSoundSource(stream).isSpeaking()) {
+  const speakingIntensity = toSoundSource(stream).getSpeakingIntensity();
+  if (speakingIntensity > 1) {
+    const alpha = speakingIntensity - 1;
     const height = 4 * radius;
-    drawRotated(
+    drawImage({
       ctx,
-      audioIndication,
-      height * (audioIndication.width / audioIndication.height),
+      alpha,
+      flipped: false,
+      image: audioIndication,
+      width: height * (audioIndication.width / audioIndication.height),
       height,
-      0,
-      p
-    );
+      angle: 0,
+      position
+    });
   }
 };
 
@@ -74,13 +103,7 @@ const drawBackground = (
 
 const slothAssets = [3, 2, 1, 2, 3, 4, 5, 4].map((i) => `sloth${i}.png`);
 
-export const GameArea: FC<Props> = ({
-  getPosition,
-  getAngle,
-  getSpeed,
-  stream,
-  others
-}) => {
+export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
   const background = useAsset("office.png");
   const audioIndication = useAsset("audio-indication.png");
   const sloths = useAssets(slothAssets);
@@ -109,9 +132,7 @@ export const GameArea: FC<Props> = ({
           canvasHeight
         ]);
 
-        const position = getPosition();
-        const angle = getAngle();
-        const speed = getSpeed();
+        const { position, angle, speed } = getMovement();
         const [xPlayer, yPlayer] = position;
         const leftIsTight = xPlayer < gameBorders.left + viewWidth / 2;
         const rightIsTight = xPlayer > gameBorders.right - viewWidth / 2;
@@ -143,44 +164,51 @@ export const GameArea: FC<Props> = ({
           transformPositionToPixelSpace([gameBorders.left, gameBorders.top])
         );
 
-        others.forEach(({ streams, position = [0, 0] }) => {
-          drawPlayer(
+        others.forEach((other) => {
+          const otherMovement = other.movement ?? null;
+          const otherStream = other.streams?.[0] ?? null;
+          const otherAngle = 0;
+          if (!otherMovement) {
+            return;
+          }
+          if (otherStream) {
+            const { intensityFactor, scalingFactor } = audioDistanceSettings;
+            toSoundSource(otherStream).setOutputVolume(
+              Math.min(
+                scalingFactor,
+                intensityFactor /
+                  distanceSquared(position, otherMovement.position)
+              ) / scalingFactor
+            );
+          }
+          drawPlayer({
             frameNumber,
             ctx,
-            streams?.[0] ?? null,
-            playerRadius * scale,
-            transformPositionToPixelSpace(position),
-            angle,
-            speed,
+            stream: otherStream,
+            flipped: true,
+            radius: playerRadius * scale,
+            position: transformPositionToPixelSpace(otherMovement.position),
+            angle: otherMovement.angle,
             audioIndication,
-            sloths
-          );
+            placeholders:
+              roundTo(otherMovement.speed, 1) > 0 ? sloths : [sloths[0]]
+          });
         });
 
-        drawPlayer(
+        drawPlayer({
           frameNumber,
           ctx,
           stream,
-          playerRadius * scale,
-          transformPositionToPixelSpace(position),
+          flipped: false,
+          radius: playerRadius * scale,
+          position: transformPositionToPixelSpace(position),
           angle,
-          speed,
           audioIndication,
-          sloths
-        );
+          placeholders: roundTo(speed, 1) > 0 ? sloths : [sloths[0]]
+        });
       }
     },
-    [
-      ctx,
-      stream,
-      others,
-      getPosition,
-      getAngle,
-      getSpeed,
-      audioIndication,
-      background,
-      sloths
-    ]
+    [ctx, stream, others, getMovement, audioIndication, background, sloths]
   );
 
   useAnimation(draw);

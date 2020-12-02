@@ -14,3 +14,11 @@ export const positionFuzzyEqual = (
   [xb, yb]: Position,
   tol: number
 ) => fuzzyEqual(xa, xb, tol) && fuzzyEqual(ya, yb, tol);
+
+export const distanceSquared = (
+  [x1, y1]: Position,
+  [x2, y2]: Position
+): number => Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2);
+
+export const distance = (a: Position, b: Position): number =>
+  Math.sqrt(distanceSquared(a, b));

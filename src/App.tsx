@@ -21,18 +21,14 @@ export default function App() {
   const { acceleration } = useMovementControl(
     stream ? defaultThrust : 0.1 * defaultThrust
   );
-  const { getPosition, getAngle, getSpeed } = useMovement(
-    acceleration,
-    movementConfig
-  );
+  const getMovement = useMovement(acceleration, movementConfig);
 
   const { users, connectionId } = useRemoteConnection(
     signalingUrl,
     positionUpdateInterval,
-    getPosition,
+    getMovement,
     stream
   );
-  const others = useMemo(() => users.filter((u) => u.streams), [users]);
 
   return (
     <div className="App">
@@ -46,18 +42,17 @@ export default function App() {
             {error && `(No camera: ${error})`}
           </div>
           <div>
-            {others.map((u) => (
+            {users.map((u) => (
               <div key={u.userId}>
-                <div>{u.userId}</div>
-                <div>Video: {u.streams ? "yes" : "no"}</div>
+                <div>
+                  {u.userId} {!u.streams && "(no stream)"}
+                </div>
               </div>
             ))}
           </div>
           <GameArea
-            getPosition={getPosition}
-            getAngle={getAngle}
-            getSpeed={getSpeed}
-            others={others}
+            getMovement={getMovement}
+            others={users}
             stream={stream}
           />
         </>

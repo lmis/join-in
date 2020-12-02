@@ -1,15 +1,16 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import adapter from "webrtc-adapter";
 import io from "socket.io-client";
-import { Position } from "utils";
+import { Position, roundTo } from "utils";
+import { Movement } from "physics";
 
 enum Signal {
   HELLO_CLIENT = "hello-client",
   MAX_USERS_REACHED = "max-users-reached",
   USER_JOINED = "user-joined",
   USER_LEFT = "user-left",
-  POSITION_UPDATE = "position-update",
+  MOVEMENT_UPDATE = "movement-update",
   ICE_CANDIDATE = "ice-candidate",
   CONNECTION_OFFER = "connection-offer",
   CONNECTION_ANSWER = "connection-answer"
@@ -25,33 +26,33 @@ const config = {
 
 interface ConnectionParams {
   url: string;
-  mediaStream: MediaStream;
+  mediaStream: MediaStream | null;
   positionUpdateInterval: number;
-  getPosition: () => Position;
+  getMovement: () => Movement;
   onConnectionEstablished: (id: string, userIds: string[]) => void;
   onMaxUsersReached: () => void;
   onUserJoined: (userId: string) => void;
   onUserLeft: (userId: string) => void;
   onError: (userId: string, error: Error) => void;
   onStreams: (userId: string, streams: readonly MediaStream[]) => void;
-  onPositionUpdate: (userId: string, position: Position) => void;
+  onMovementUpdate: (userId: string, position: Movement) => void;
 }
 
 const stringifyPayload = <T>(payload?: T): string =>
-  payload ? `(${JSON.stringify(payload)})`.substring(0, 70) : "";
+  payload ? `(${JSON.stringify(payload)})`.substring(0, 90) : "";
 
 const establishConnection = ({
   url,
   mediaStream,
   positionUpdateInterval,
-  getPosition,
+  getMovement,
   onConnectionEstablished,
   onMaxUsersReached,
   onUserJoined,
   onUserLeft,
   onError,
   onStreams,
-  onPositionUpdate
+  onMovementUpdate
 }: ConnectionParams): (() => void) => {
   const connectionsByUserId = new Map<string, RTCPeerConnection>();
   const registeredSignals = new Set<Signal>();
@@ -126,20 +127,30 @@ const establishConnection = ({
   receive<{ userIds: string[] }>(Signal.HELLO_CLIENT, ({ userIds }) => {
     userIds.forEach(getOrMakeRTCPeerConnection);
     onConnectionEstablished(socket.id, userIds);
-    let prevPosition: Position | null = null;
+    let prev: Movement | null = null;
     intervalIds.push(
       setInterval(() => {
-        const [x, y] = getPosition();
+        const movement = getMovement();
+        const [x, y] = movement.position;
         const position: Position = [Math.round(x), Math.round(y)];
+        const angle = +roundTo(movement.angle, 0.1).toFixed(2);
+        const speed = +roundTo(movement.speed, 0.1).toFixed(2);
         if (
-          !prevPosition ||
-          position[0] !== prevPosition[0] ||
-          position[1] !== prevPosition[1]
+          prev === null ||
+          prev.angle !== angle ||
+          prev.speed !== speed ||
+          position[0] !== prev.position[0] ||
+          position[1] !== prev.position[1]
         ) {
-          send(Signal.POSITION_UPDATE, {
-            position
+          const update = {
+            position,
+            angle,
+            speed
+          };
+          send(Signal.MOVEMENT_UPDATE, {
+            movement: update
           });
-          prevPosition = position;
+          prev = update;
         }
       }, positionUpdateInterval)
     );
@@ -151,16 +162,16 @@ const establishConnection = ({
 
   receive<{ userId: string }>(Signal.USER_JOINED, ({ userId }) => {
     const peerConnection = getOrMakeRTCPeerConnection(userId);
-    mediaStream.getTracks().forEach((track) => {
+    mediaStream?.getTracks()?.forEach((track) => {
       peerConnection.addTrack(track, mediaStream);
     });
     onUserJoined(userId);
   });
 
-  receive<{ userId: string; position: Position }>(
-    Signal.POSITION_UPDATE,
-    ({ userId, position }) => {
-      onPositionUpdate(userId, position);
+  receive<{ userId: string; movement: Movement }>(
+    Signal.MOVEMENT_UPDATE,
+    ({ userId, movement }) => {
+      onMovementUpdate(userId, movement);
     }
   );
 
@@ -181,7 +192,7 @@ const establishConnection = ({
       const peerConnection = getOrMakeRTCPeerConnection(userId);
       try {
         await peerConnection.setRemoteDescription(offer);
-        mediaStream.getTracks().forEach((track) => {
+        mediaStream?.getTracks().forEach((track) => {
           peerConnection.addTrack(track, mediaStream);
         });
         const answer = await peerConnection.createAnswer();
@@ -213,7 +224,7 @@ const establishConnection = ({
 
 export interface UserData {
   userId: string;
-  position?: Position;
+  movement?: Movement;
   streams?: readonly MediaStream[];
   error?: Error;
 }
@@ -227,7 +238,7 @@ export interface RemoteConnection {
 export const useRemoteConnection = (
   url: string,
   positionUpdateInterval: number,
-  getPosition: () => Position,
+  getMovement: () => Movement,
   mediaStream: MediaStream | null
 ): RemoteConnection => {
   const [connectionId, setConnectionId] = useState<string | null>(null);
@@ -235,9 +246,6 @@ export const useRemoteConnection = (
   const [users, setUsers] = useState<UserData[]>([]);
 
   useEffect(() => {
-    if (!mediaStream) {
-      return;
-    }
     const updateUser = (userId: string, update: Partial<UserData>) =>
       setUsers((xs) => [
         ...xs.map((u) => (u.userId !== userId ? u : { ...u, ...update }))
@@ -246,7 +254,7 @@ export const useRemoteConnection = (
       url,
       mediaStream,
       positionUpdateInterval,
-      getPosition,
+      getMovement,
       onConnectionEstablished: (id, userIds) => {
         setConnectionId(id);
         setUsers(userIds.map((userId) => ({ userId })));
@@ -257,9 +265,9 @@ export const useRemoteConnection = (
         setUsers((xs) => xs.filter((u) => u.userId !== userId)),
       onError: (userId, error) => updateUser(userId, { error }),
       onStreams: (userId, streams) => updateUser(userId, { streams }),
-      onPositionUpdate: (userId, position) => updateUser(userId, { position })
+      onMovementUpdate: (userId, movement) => updateUser(userId, { movement })
     });
-  }, [url, mediaStream, positionUpdateInterval, getPosition]);
+  }, [url, mediaStream, positionUpdateInterval, getMovement]);
 
   return { connectionId, users, maxUsersReached };
 };

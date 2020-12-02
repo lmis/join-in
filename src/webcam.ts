@@ -34,7 +34,7 @@ export const useUserMedia = (
 };
 
 export interface SoundSource {
-  isSpeaking: () => boolean;
+  getSpeakingIntensity: () => number;
   setOutputVolume: (x: number) => void;
 }
 
@@ -48,7 +48,7 @@ const createSoundSource = (stream: MediaStream): SoundSource => {
     maxDecibels,
     smoothingTimeConstant,
     fftSize,
-    threshold
+    speakingBaseScore
   } = audioDectectionConfig;
   analyzer.minDecibels = minDecibels;
   analyzer.maxDecibels = maxDecibels;
@@ -63,10 +63,10 @@ const createSoundSource = (stream: MediaStream): SoundSource => {
   source.connect(analyzer).connect(outputGain).connect(ctx.destination);
 
   const soundSource = {
-    isSpeaking: () => {
+    getSpeakingIntensity: () => {
       analyzer.getByteFrequencyData(dataArray);
       const score = dataArray.reduce((acc, x) => acc + x, 0);
-      return score > threshold;
+      return score / speakingBaseScore;
     },
     setOutputVolume: (x: number) => {
       outputGain.gain.value = x;
