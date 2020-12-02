@@ -23,6 +23,13 @@ export const audioDistanceSettings = {
   scalingFactor: 1
 };
 
+export const scaleConfig = {
+  defaultScale: 0.7,
+  minScale: 0.535,
+  increment: 0.02,
+  speedFactor: 4500
+};
+
 export const canvasWidth = 800;
 export const canvasHeight = 800;
 export const playerRadius = 75;

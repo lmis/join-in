@@ -4,8 +4,9 @@ import { hasAudio, hasVideo, useUserMedia } from "webcam";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement } from "physics";
-import { useMovementControl } from "keypress";
+import { useZoom, useMovementControl } from "keypress";
 import {
+  scaleConfig,
   movementConfig,
   positionUpdateInterval,
   signalingUrl,
@@ -17,6 +18,7 @@ import "./styles.css";
 const userMediaConstraints = { audio: true, video: true };
 
 export default function App() {
+  const restScale = useZoom(scaleConfig);
   const { stream, error } = useUserMedia(userMediaConstraints);
   const { acceleration } = useMovementControl(
     stream && hasVideo(stream) ? defaultThrust : 0.1 * defaultThrust
@@ -55,7 +57,12 @@ export default function App() {
               </div>
             ))}
           </div>
-          <GameArea stream={stream} getMovement={getMovement} others={users} />
+          <GameArea
+            restScale={restScale}
+            stream={stream}
+            getMovement={getMovement}
+            others={users}
+          />
         </>
       )}
     </div>

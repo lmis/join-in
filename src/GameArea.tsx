@@ -7,6 +7,7 @@ import { useAssets, useAsset, useAnimation, useContext2D } from "render";
 import { drawCircle, drawImage } from "draw";
 import { distanceSquared, Position, roundTo } from "utils";
 import {
+  scaleConfig,
   canvasWidth,
   canvasHeight,
   gameBorders,
@@ -16,6 +17,7 @@ import {
 import { Movement } from "physics";
 
 interface Props {
+  restScale: number;
   getMovement: () => Movement;
   others: UserData[];
   stream: MediaStream | null;
@@ -119,7 +121,12 @@ const drawBackground = (
 
 const slothAssets = [3, 2, 1, 2, 3, 4, 5, 4].map((i) => `sloth${i}.png`);
 
-export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
+export const GameArea: FC<Props> = ({
+  getMovement,
+  stream,
+  others,
+  restScale
+}) => {
   const background = useAsset("office.png");
   const audioIndication = useAsset("audio-indication.png");
   const muted = useAsset("muted.png");
@@ -134,7 +141,10 @@ export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
       }
 
       if (audioIndication && background && sloths && muted) {
-        const scale = 0.75;
+        const scale = Math.max(
+          scaleConfig.minScale,
+          restScale * (1 - getMovement().speed / scaleConfig.speedFactor)
+        );
         const [xScale, yScale] = [
           (gameBorders.right - gameBorders.left) / (background.width * scale),
           (gameBorders.top - gameBorders.bottom) / (background.height * scale)
@@ -230,6 +240,7 @@ export const GameArea: FC<Props> = ({ getMovement, stream, others }) => {
       ctx,
       stream,
       others,
+      restScale,
       getMovement,
       audioIndication,
       background,
