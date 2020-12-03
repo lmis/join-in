@@ -2,9 +2,10 @@
 import React, { FC, useRef, useCallback } from "react";
 
 import { UserData } from "connection";
-import { toVideoElement, toSoundSource, hasVideo, hasAudio } from "webcam";
-import { useAssets, useAsset, useAnimation, useContext2D } from "render";
-import { drawCircle, drawImage } from "draw";
+import { makeSoundControlFactory } from "userMedia/soundControl";
+import { toVideoElement, hasVideo, hasAudio } from "userMedia/mediaStream";
+import { useAssets, useAsset, useAnimation, useContext2D } from "canvas/render";
+import { drawCircle, drawImage } from "canvas/draw";
 import { distanceSquared, Position, roundTo } from "utils";
 import {
   scaleConfig,
@@ -12,16 +13,19 @@ import {
   canvasHeight,
   gameBorders,
   playerRadius,
+  soundControlConfig,
   audioDistanceSettings
 } from "config";
-import { Movement } from "physics";
+import { Movement } from "physics/movement";
 
 interface Props {
   restScale: number;
-  getMovement: () => Movement;
+  movement: Movement | null;
   others: UserData[];
   stream: MediaStream | null;
 }
+
+const toSoundControl = makeSoundControlFactory(soundControlConfig);
 
 const drawPlayer = ({
   frameNumber,
@@ -79,7 +83,7 @@ const drawPlayer = ({
   }
 
   if (stream && hasAudio(stream)) {
-    const speakingIntensity = toSoundSource(stream).getSpeakingIntensity();
+    const speakingIntensity = toSoundControl(stream).getSpeakingIntensity();
     if (speakingIntensity > 1) {
       const alpha = speakingIntensity - 1;
       const height = 4 * radius;
@@ -122,7 +126,7 @@ const drawBackground = (
 const slothAssets = [3, 2, 1, 2, 3, 4, 5, 4].map((i) => `sloth${i}.png`);
 
 export const GameArea: FC<Props> = ({
-  getMovement,
+  movement,
   stream,
   others,
   restScale
@@ -140,10 +144,10 @@ export const GameArea: FC<Props> = ({
         return;
       }
 
-      if (audioIndication && background && sloths && muted) {
+      if (audioIndication && background && sloths && muted && movement) {
         const scale = Math.max(
           scaleConfig.minScale,
-          restScale * (1 - getMovement().speed / scaleConfig.speedFactor)
+          restScale * (1 - movement.getSpeed() / scaleConfig.speedFactor)
         );
         const [xScale, yScale] = [
           (gameBorders.right - gameBorders.left) / (background.width * scale),
@@ -159,7 +163,9 @@ export const GameArea: FC<Props> = ({
           canvasHeight
         ]);
 
-        const { position, angle, speed } = getMovement();
+        const position = movement.getPosition();
+        const angle = movement.getAngle();
+        const speed = movement.getSpeed();
         const [xPlayer, yPlayer] = position;
         const leftIsTight = xPlayer < gameBorders.left + viewWidth / 2;
         const rightIsTight = xPlayer > gameBorders.right - viewWidth / 2;
@@ -192,18 +198,19 @@ export const GameArea: FC<Props> = ({
         );
 
         others.forEach((other) => {
-          const otherMovement = other.movement ?? null;
-          const otherStream = other.audioStreams?.[0] ?? null;
-          if (!otherMovement) {
+          const otherPosition = other.position ?? null;
+          const otherAngle = other.angle ?? null;
+          const otherSpeed = other.speed ?? null;
+          const otherStream = other.streams?.[0] ?? null;
+          if (!otherPosition || !otherAngle || !otherSpeed) {
             return;
           }
           if (otherStream && hasAudio(otherStream)) {
             const { intensityFactor, scalingFactor } = audioDistanceSettings;
-            toSoundSource(otherStream).setOutputVolume(
+            toSoundControl(otherStream).setOutputVolume(
               Math.min(
                 scalingFactor,
-                intensityFactor /
-                  distanceSquared(position, otherMovement.position)
+                intensityFactor / distanceSquared(position, otherPosition)
               ) / scalingFactor
             );
           }
@@ -213,12 +220,11 @@ export const GameArea: FC<Props> = ({
             stream,
             flipped: true,
             radius: playerRadius * scale,
-            position: transformPositionToPixelSpace(otherMovement.position),
-            angle: otherMovement.angle,
+            position: transformPositionToPixelSpace(otherPosition),
+            angle: otherAngle,
             audioIndication,
             muted,
-            placeholders:
-              roundTo(otherMovement.speed, 1) > 0 ? sloths : [sloths[0]]
+            placeholders: roundTo(otherSpeed, 1) > 0 ? sloths : [sloths[0]]
           });
         });
 
@@ -241,7 +247,7 @@ export const GameArea: FC<Props> = ({
       stream,
       others,
       restScale,
-      getMovement,
+      movement,
       audioIndication,
       background,
       sloths,

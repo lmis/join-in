@@ -1,9 +1,9 @@
-import { MovementConfig } from "physics";
+import { MovementConfig } from "physics/movement";
 
 export const signalingUrl = "https://czof1.sse.codesandbox.io/";
 export const positionUpdateInterval = 200;
 
-export const audioDectectionConfig = {
+export const soundControlConfig = {
   speakingBaseScore: 2000,
   fftSize: 256,
   minDecibels: -90,

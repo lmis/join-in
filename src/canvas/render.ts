@@ -45,7 +45,7 @@ export const useAssets = (names: string[]): HTMLImageElement[] | null => {
           return res;
         });
       };
-      img.src = require("../public/assets/" + name);
+      img.src = require("../../../public/assets/" + name);
     });
     return () => {
       setImages(null);

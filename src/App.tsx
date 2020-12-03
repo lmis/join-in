@@ -1,16 +1,10 @@
-/* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import React, { useEffect } from "react";
-import {
-  hasAudio,
-  hasVideo,
-  setEnabled,
-  toStreamControl,
-  useUserMedia
-} from "webcam";
+import React, { useEffect, useState } from "react";
+import { useUserMedia } from "userMedia/webcam";
+import { hasAudio, hasVideo, setEnabled } from "userMedia/mediaStream";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
-import { useMovement } from "physics";
-import { useZoom, useMovementControl } from "keypress";
+import { useMovement } from "physics/useMovement";
+import { useZoom, useMovementControl } from "controls/keypress";
 import {
   scaleConfig,
   movementConfig,
@@ -26,10 +20,21 @@ const userMediaConstraints = { audio: true, video: true };
 export default function App() {
   const restScale = useZoom(scaleConfig);
   const { stream, error } = useUserMedia(userMediaConstraints);
-  const { acceleration } = useMovementControl(
-    stream && hasVideo(stream) ? defaultThrust : 0.1 * defaultThrust
-  );
-  const getMovement = useMovement(acceleration, movementConfig);
+  const [thrust, setThrust] = useState<number>(defaultThrust);
+  const { acceleration } = useMovementControl(thrust);
+  // stream && hasVideo(stream) ? defaultThrust : 0.1 * defaultThrust
+  const movement = useMovement(acceleration, movementConfig);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (stream && hasVideo(stream)) {
+        setThrust(defaultThrust);
+      } else {
+        setThrust(0.1 * defaultThrust);
+      }
+    }, 50);
+    return () => clearInterval(id);
+  }, [stream]);
 
   // TODO: Use this to make buttons :)
   useEffect(() => {
@@ -48,13 +53,18 @@ export default function App() {
   const { users, connectionId } = useRemoteConnection(
     signalingUrl,
     positionUpdateInterval,
-    getMovement,
+    movement,
     stream
   );
 
   const isWaiting = !error && !stream;
   const videoReady = stream && hasVideo(stream);
   const audioReady = stream && hasAudio(stream);
+  const reason = error
+    ? error
+    : stream && stream.getTracks().filter((t) => !t.enabled).length !== 0
+    ? "Disabled"
+    : null;
 
   return (
     <div className="App">
@@ -65,8 +75,8 @@ export default function App() {
           <h2>Users</h2>
           <div>
             You ({connectionId ?? "No connection"}){" "}
-            {!videoReady && `(No camera: ${error})`}{" "}
-            {!audioReady && `(No microphone: ${error})`}
+            {!videoReady && `(No camera: ${reason})`}{" "}
+            {!audioReady && `(No microphone: ${reason})`}
           </div>
           <div>
             {users.map((u) => (
@@ -80,7 +90,7 @@ export default function App() {
           <GameArea
             restScale={restScale}
             stream={stream}
-            getMovement={getMovement}
+            movement={movement}
             others={users}
           />
         </>

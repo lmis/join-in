@@ -1,5 +1,4 @@
 /* eslint-disable no-undef, @typescript-eslint/no-unused-vars */
-import { Position } from "utils";
 
 interface CommonParams {
   ctx: CanvasRenderingContext2D;
@@ -7,7 +6,7 @@ interface CommonParams {
   flipped: boolean;
   image: CanvasImageSource;
   angle: number;
-  position: Position;
+  position: [number, number];
 }
 export const drawImage = ({
   ctx,

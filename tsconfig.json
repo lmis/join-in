@@ -3,7 +3,7 @@
     "./src/**/*"
   ],
   "compilerOptions": {
-    "baseUrl": "./src", 
+    "baseUrl": "./src",
     "strict": true,
     "downlevelIteration": true,
     "esModuleInterop": true,
