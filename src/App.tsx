@@ -1,6 +1,5 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useUserMedia } from "userMedia/webcam";
-import { setEnabled } from "userMedia/mediaStream";
 import { ButtonArea } from "ButtonArea";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
@@ -28,19 +27,6 @@ export default function App() {
   );
   const movement = useMovement(acceleration, movementConfig);
 
-  useEffect(() => {
-    if (stream) {
-      setTimeout(() => {
-        console.log("OFF");
-        setEnabled("video", false, stream);
-      }, 1000);
-      setTimeout(() => {
-        console.log("ON");
-        setEnabled("video", true, stream);
-      }, 3000);
-    }
-  }, [stream]);
-
   const { users, connectionId } = useRemoteConnection(
     signalingUrl,
     positionUpdateInterval,
@@ -61,13 +47,22 @@ export default function App() {
         <h2>Waiting for webcam...</h2>
       ) : (
         <>
-          <h2>Users</h2>
-          <div>
-            You ({connectionId ?? "No connection"}){" "}
-            {!videoEnabled && `(No camera: ${reason})`}{" "}
-            {!audioEnabled && `(No microphone: ${reason})`}
+          <div className="header">
+            <span className="header_logo">join-in</span>
+            <span className="header_slogan">
+              Come on in, grab a coffee and join us for some jibber-jabber and
+              watercooler banter.
+            </span>
           </div>
-          <div>
+          <div className="left-side">
+            Users:
+            <br />
+            You ({connectionId ?? "No connection"})
+            <br />
+            {!videoEnabled && `(No camera: ${reason})`}
+            <br />
+            {!audioEnabled && `(No microphone: ${reason})`}
+            <br />
             {users.map((u) => (
               <div key={u.userId}>
                 <div>
@@ -76,21 +71,23 @@ export default function App() {
               </div>
             ))}
           </div>
-          <GameArea
-            restScale={restScale}
-            stream={stream}
-            videoEnabled={videoEnabled}
-            audioEnabled={audioEnabled}
-            movement={movement}
-            others={users}
-          />
-          {stream && (
-            <ButtonArea
+          <div className="main">
+            <GameArea
+              restScale={restScale}
               stream={stream}
-              audioEnabled={audioEnabled}
               videoEnabled={videoEnabled}
+              audioEnabled={audioEnabled}
+              movement={movement}
+              others={users}
             />
-          )}
+            {stream && (
+              <ButtonArea
+                stream={stream}
+                audioEnabled={audioEnabled}
+                videoEnabled={videoEnabled}
+              />
+            )}
+          </div>
         </>
       )}
     </div>

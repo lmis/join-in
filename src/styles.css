@@ -6,6 +6,44 @@ body {
 .App {
   font-family: sans-serif;
   text-align: center;
+  padding-left: 5rem;
+  display: grid;
+  grid-template: auto 1fr / 240px 1fr;
+}
+
+.header {
+  padding: 2rem 2rem 2rem 0rem;
+  font-weight: bold;
+  grid-column: 1 / grid-column-end;
+}
+
+.header_logo {
+  padding: 2rem 2rem 2rem 0rem;
+  font-size: 40px;
+  font-style: italic;
+  text-align: left;
+  grid-column: 1 /2;
+}
+
+.header_slogan {
+  padding: 2rem 2rem 2rem 0rem;
+  font-size: large;
+  text-align: center;
+  grid-column: 2 /4;
+}
+
+.left-side {
+  border-style: solid;
+  border-radius: 15px;
+  border: 2px solid #333029;
+  margin: 0px 5px;
+  padding: 5px;
+  grid-column: 1 / 2;
+  text-align: left;
+}
+
+.main {
+  grid-column: 2 / 4;
 }
 
 .Canvas {

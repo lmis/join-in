@@ -276,10 +276,6 @@ export const GameArea: FC<Props> = ({
 
   return (
     <>
-      <h3>
-        Come on in, grab a coffee and join us for some jibber-jabber and
-        watercooler banter.
-      </h3>
       <canvas
         ref={canvasRef}
         className="Canvas"
