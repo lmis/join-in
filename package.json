@@ -2,11 +2,16 @@
   "name": "react",
   "version": "1.0.0",
   "description": "Join-in webchat",
-  "keywords": ["react", "webchat", "social"],
+  "keywords": [
+    "react",
+    "webchat",
+    "social"
+  ],
   "main": "src/index.tsx",
   "dependencies": {
     "@types/lodash": "4.14.165",
     "@types/socket.io-client": "1.4.34",
+    "antd": "4.9.1",
     "lodash": "4.17.20",
     "react": "17.0.1",
     "react-dom": "17.0.0",
@@ -25,5 +30,10 @@
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject"
   },
-  "browserslist": [">0.2%", "not dead", "not ie <= 11", "not op_mini all"]
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not ie <= 11",
+    "not op_mini all"
+  ]
 }

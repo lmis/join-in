@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useUserMedia } from "userMedia/webcam";
 import { setEnabled } from "userMedia/mediaStream";
+import { ButtonArea } from "ButtonArea";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement } from "physics/useMovement";
@@ -27,7 +28,6 @@ export default function App() {
   );
   const movement = useMovement(acceleration, movementConfig);
 
-  // TODO: Use this to make buttons :)
   useEffect(() => {
     if (stream) {
       setTimeout(() => {
@@ -84,6 +84,13 @@ export default function App() {
             movement={movement}
             others={users}
           />
+          {stream && (
+            <ButtonArea
+              stream={stream}
+              audioEnabled={audioEnabled}
+              videoEnabled={videoEnabled}
+            />
+          )}
         </>
       )}
     </div>
