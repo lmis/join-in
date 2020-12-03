@@ -3,7 +3,7 @@ import React, { FC, useRef, useCallback } from "react";
 
 import { UserData } from "connection";
 import { makeSoundControlFactory } from "userMedia/soundControl";
-import { toVideoElement, hasVideo, hasAudio } from "userMedia/mediaStream";
+import { toVideoElement, has } from "userMedia/mediaStream";
 import { useAssets, useAsset, useAnimation, useContext2D } from "canvas/render";
 import { drawCircle, drawImage } from "canvas/draw";
 import { distanceSquared, Position, roundTo } from "utils";
@@ -23,6 +23,8 @@ interface Props {
   movement: Movement | null;
   others: UserData[];
   stream: MediaStream | null;
+  videoEnabled: boolean;
+  audioEnabled: boolean;
 }
 
 const toSoundControl = makeSoundControlFactory(soundControlConfig);
@@ -31,6 +33,8 @@ const drawPlayer = ({
   frameNumber,
   ctx,
   stream,
+  videoEnabled,
+  audioEnabled,
   flipped,
   radius,
   position,
@@ -42,6 +46,8 @@ const drawPlayer = ({
   frameNumber: number;
   ctx: CanvasRenderingContext2D;
   stream: MediaStream | null;
+  videoEnabled: boolean;
+  audioEnabled: boolean;
   flipped: boolean;
   radius: number;
   position: Position;
@@ -50,7 +56,7 @@ const drawPlayer = ({
   muted: HTMLImageElement;
   placeholders: HTMLImageElement[];
 }) => {
-  if (stream && hasVideo(stream)) {
+  if (videoEnabled && stream && has("video", stream)) {
     const video = toVideoElement(stream);
     drawCircle({
       ctx,
@@ -82,7 +88,7 @@ const drawPlayer = ({
     });
   }
 
-  if (stream && hasAudio(stream)) {
+  if (audioEnabled && stream && has("audio", stream)) {
     const speakingIntensity = toSoundControl(stream).getSpeakingIntensity();
     if (speakingIntensity > 1) {
       const alpha = speakingIntensity - 1;
@@ -128,6 +134,8 @@ const slothAssets = [3, 2, 1, 2, 3, 4, 5, 4].map((i) => `sloth${i}.png`);
 export const GameArea: FC<Props> = ({
   movement,
   stream,
+  videoEnabled,
+  audioEnabled,
   others,
   restScale
 }) => {
@@ -198,33 +206,38 @@ export const GameArea: FC<Props> = ({
         );
 
         others.forEach((other) => {
-          const otherPosition = other.position ?? null;
-          const otherAngle = other.angle ?? null;
-          const otherSpeed = other.speed ?? null;
+          const otherState = other.state ?? null;
           const otherStream = other.streams?.[0] ?? null;
-          if (!otherPosition || !otherAngle || !otherSpeed) {
+          if (!otherState) {
             return;
           }
-          if (otherStream && hasAudio(otherStream)) {
+          if (
+            otherStream &&
+            has("audio", otherStream) &&
+            otherState.audioEnabled
+          ) {
             const { intensityFactor, scalingFactor } = audioDistanceSettings;
             toSoundControl(otherStream).setOutputVolume(
               Math.min(
                 scalingFactor,
-                intensityFactor / distanceSquared(position, otherPosition)
+                intensityFactor / distanceSquared(position, otherState.position)
               ) / scalingFactor
             );
           }
           drawPlayer({
             frameNumber,
             ctx,
-            stream,
+            stream: otherStream,
+            videoEnabled: otherState.videoEnabled,
+            audioEnabled: otherState.audioEnabled,
             flipped: true,
             radius: playerRadius * scale,
-            position: transformPositionToPixelSpace(otherPosition),
-            angle: otherAngle,
+            position: transformPositionToPixelSpace(otherState.position),
+            angle: otherState.angle,
             audioIndication,
             muted,
-            placeholders: roundTo(otherSpeed, 1) > 0 ? sloths : [sloths[0]]
+            placeholders:
+              roundTo(otherState.speed, 1) > 0 ? sloths : [sloths[0]]
           });
         });
 
@@ -232,6 +245,8 @@ export const GameArea: FC<Props> = ({
           frameNumber,
           ctx,
           stream,
+          videoEnabled,
+          audioEnabled,
           flipped: false,
           radius: playerRadius * scale,
           position: transformPositionToPixelSpace(position),
@@ -245,6 +260,8 @@ export const GameArea: FC<Props> = ({
     [
       ctx,
       stream,
+      videoEnabled,
+      audioEnabled,
       others,
       restScale,
       movement,

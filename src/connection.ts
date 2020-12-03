@@ -4,13 +4,14 @@ import adapter from "webrtc-adapter";
 import io from "socket.io-client";
 import { Position, roundTo } from "utils";
 import { Movement } from "physics/movement";
+import { has } from "userMedia/mediaStream";
 
 enum Signal {
   HELLO_CLIENT = "hello-client",
   MAX_USERS_REACHED = "max-users-reached",
   USER_JOINED = "user-joined",
   USER_LEFT = "user-left",
-  MOVEMENT_UPDATE = "movement-update",
+  STATE_UPDATE = "state-update",
   ICE_CANDIDATE = "ice-candidate",
   CONNECTION_OFFER = "connection-offer",
   CONNECTION_ANSWER = "connection-answer"
@@ -24,18 +25,19 @@ const config = {
   ]
 };
 
-export interface UserData {
-  userId: string;
-  position?: Position;
-  angle?: number;
-  speed?: number;
-  streams?: readonly MediaStream[];
-  error?: Error;
-}
-interface MovementUpdate {
+interface UserState {
   position: Position;
   angle: number;
   speed: number;
+  videoEnabled: boolean;
+  audioEnabled: boolean;
+}
+
+export interface UserData {
+  userId: string;
+  state?: UserState;
+  streams?: readonly MediaStream[];
+  error?: string;
 }
 
 interface ConnectionParams {
@@ -46,12 +48,26 @@ interface ConnectionParams {
 }
 
 interface Connection {
-  sendMovementUpdate: (m: MovementUpdate) => void;
+  sendStateUpdate: (s: UserState) => void;
   setMediaStream: (m: MediaStream | null) => void;
 }
 
+const addMediaStream = (
+  peerConnection: RTCPeerConnection,
+  mediaStream: MediaStream | null
+) => {
+  if (!mediaStream) {
+    return;
+  }
+  try {
+    mediaStream.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, mediaStream);
+    });
+  } catch (e) {}
+};
+
 const stringifyPayload = <T>(payload?: T): string =>
-  payload ? `(${JSON.stringify(payload)})`.substring(0, 90) : "";
+  payload ? `(${JSON.stringify(payload)})`.substring(0, 120) : "";
 
 const establishConnection = ({
   url,
@@ -72,7 +88,7 @@ const establishConnection = ({
     onUserData([...userData.values()]);
   };
   const updateUser = (userId: string, update: Partial<UserData>) => {
-    userData.set(userId, { userId, ...userData.get(userId), ...update });
+    userData.set(userId, { ...userData.get(userId), ...update, userId });
     onUserData([...userData.values()]);
   };
 
@@ -131,7 +147,7 @@ const establishConnection = ({
         await peerConnection.setLocalDescription(offer);
         send(Signal.CONNECTION_OFFER, { target: userId, offer });
       } catch (error) {
-        updateUser(userId, { error });
+        updateUser(userId, { error: error.message });
       }
     };
     peerConnection.ontrack = ({ streams }) => {
@@ -153,17 +169,16 @@ const establishConnection = ({
 
   receive<{ userId: string }>(Signal.USER_JOINED, ({ userId }) => {
     const peerConnection = getOrMakeRTCPeerConnection(userId);
-    mediaStream?.getTracks()?.forEach((track) => {
-      mediaStream && peerConnection.addTrack(track, mediaStream);
-    });
+    addMediaStream(peerConnection, mediaStream);
     addUser(userId);
   });
 
-  receive<{
-    userId: string;
-    movement: MovementUpdate;
-  }>(Signal.MOVEMENT_UPDATE, ({ userId, movement }) => {
-    updateUser(userId, movement);
+  receive<
+    {
+      userId: string;
+    } & UserState
+  >(Signal.STATE_UPDATE, ({ userId, ...state }) => {
+    updateUser(userId, { state });
   });
 
   receive<{ userId: string; candidate: RTCIceCandidate }>(
@@ -183,9 +198,7 @@ const establishConnection = ({
       const peerConnection = getOrMakeRTCPeerConnection(userId);
       try {
         await peerConnection.setRemoteDescription(offer);
-        mediaStream?.getTracks()?.forEach((track) => {
-          mediaStream && peerConnection.addTrack(track, mediaStream);
-        });
+        addMediaStream(peerConnection, mediaStream);
         const answer = await peerConnection.createAnswer();
         peerConnection.setLocalDescription(answer);
         send(Signal.CONNECTION_ANSWER, { target: userId, answer });
@@ -212,11 +225,16 @@ const establishConnection = ({
   });
 
   return {
-    sendMovementUpdate: (update) => {
-      send(Signal.MOVEMENT_UPDATE, update);
+    sendStateUpdate: (update) => {
+      send(Signal.STATE_UPDATE, update);
     },
     setMediaStream: (m: MediaStream | null) => {
       mediaStream = m;
+      if (m) {
+        [...connectionsByUserId.values()].forEach((peerConnection) => {
+          addMediaStream(peerConnection, m);
+        });
+      }
     },
     cleanup
   };
@@ -230,7 +248,7 @@ export interface RemoteConnection {
 
 export const useRemoteConnection = (
   url: string,
-  positionUpdateInterval: number,
+  stateUpdateInterval: number,
   movement: Movement | null,
   mediaStream: MediaStream | null
 ): RemoteConnection => {
@@ -240,6 +258,9 @@ export const useRemoteConnection = (
   const [maxUsersReached, setMaxUsersReached] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!movement) {
+      return;
+    }
     const { cleanup, ...connection } = establishConnection({
       url,
       onConnectionEstablished: setConnectionId,
@@ -251,42 +272,55 @@ export const useRemoteConnection = (
       setConnection(null);
       cleanup();
     };
-  }, [url]);
+  }, [url, movement]);
 
   useEffect(() => {
     connection?.setMediaStream(mediaStream);
   }, [mediaStream, connection]);
 
   useEffect(() => {
-    if (!movement || !connection) {
+    if (!movement || !connection || !connectionId) {
       return;
     }
-    let prev: null | MovementUpdate = null;
-    const id = setInterval(() => {
+    let prev: null | UserState = null;
+    const sendUpdate = () => {
       const [x, y] = movement.getPosition();
       const position: Position = [Math.round(x), Math.round(y)];
       const angle = +roundTo(movement.getAngle(), 0.1).toFixed(2);
       const speed = +roundTo(movement.getSpeed(), 0.1).toFixed(2);
+      const audioEnabled = has("audio", mediaStream);
+      const videoEnabled = has("video", mediaStream);
       if (
         prev === null ||
         prev.angle !== angle ||
         prev.speed !== speed ||
         position[0] !== prev.position[0] ||
-        position[1] !== prev.position[1]
+        position[1] !== prev.position[1] ||
+        videoEnabled !== prev.videoEnabled ||
+        audioEnabled !== prev.audioEnabled
       ) {
         const update = {
           position,
           angle,
-          speed
+          speed,
+          videoEnabled,
+          audioEnabled
         };
-        connection.sendMovementUpdate(update);
+        connection.sendStateUpdate(update);
         prev = update;
       }
-    }, positionUpdateInterval);
+    };
+    sendUpdate();
+    const id = setInterval(sendUpdate, stateUpdateInterval);
     return () => clearInterval(id);
-  }, [movement, connection, positionUpdateInterval]);
-
-  useEffect(() => {}, [connection]);
+  }, [
+    users.length,
+    mediaStream,
+    movement,
+    connection,
+    connectionId,
+    stateUpdateInterval
+  ]);
 
   return { connectionId, users, maxUsersReached };
 };

@@ -1,8 +1,9 @@
-export const hasVideo = (stream: MediaStream): boolean =>
-  stream.getVideoTracks().filter((t) => t.enabled).length !== 0;
-
-export const hasAudio = (stream: MediaStream): boolean =>
-  stream.getAudioTracks().filter((t) => t.enabled).length !== 0;
+export const has = (
+  kind: "audio" | "video",
+  stream: MediaStream | null
+): boolean =>
+  !!stream &&
+  stream.getTracks().filter((t) => t.kind === kind && t.enabled).length !== 0;
 
 export const setEnabled = (
   kind: "video" | "audio",

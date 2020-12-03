@@ -1,6 +1,6 @@
 import { MovementConfig } from "physics/movement";
 
-export const signalingUrl = "https://czof1.sse.codesandbox.io/";
+export const signalingUrl = "https://ggtue.sse.codesandbox.io/";
 export const positionUpdateInterval = 200;
 
 export const soundControlConfig = {
@@ -19,7 +19,7 @@ export const gameBorders = {
 };
 
 export const audioDistanceSettings = {
-  intensityFactor: 800 * 800,
+  intensityFactor: 64000,
   scalingFactor: 1
 };
 
