@@ -65,7 +65,6 @@ body {
   border-radius: 15px;
   border: 2px solid #333029;
   display: inline-block;
-  cursor: pointer;
   color: #505739;
   font-size: 14px;
   font-weight: bold;
@@ -74,7 +73,12 @@ body {
   outline: none;
 }
 
-.Button:hover {
+.Button:hover:enabled {
   background: linear-gradient(to bottom, #ccc2a6 5%, #eae0c2 100%);
   background-color: #ccc2a6;
+  cursor: pointer;
+}
+
+.Button:disabled {
+  opacity: 40%;
 }
