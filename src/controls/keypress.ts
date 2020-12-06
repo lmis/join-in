@@ -56,34 +56,15 @@ export const useMovementControl = (
   return { acceleration };
 };
 
-export const useZoom = ({
-  defaultScale,
-  minScale,
-  increment
-}: {
-  defaultScale: number;
-  minScale: number;
-  increment: number;
-}) => {
-  const [scale, setScale] = useState<number>(defaultScale);
-
+export const useKeyDown = (key: string, onKeyDown: () => void) => {
   const handler = useCallback(
     (e: DocumentEventMap["keydown"]) => {
-      setScale((x) => {
-        switch (e.key) {
-          case "+":
-            return x + increment;
-          case "-":
-            return Math.max(minScale, x - increment);
-          default:
-            return x;
-        }
-      });
+      if (e.key === key) {
+        onKeyDown();
+      }
     },
-    [increment, minScale]
+    [key, onKeyDown]
   );
 
   useEventListener("keydown", handler);
-
-  return scale;
 };

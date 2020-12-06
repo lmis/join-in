@@ -4,7 +4,9 @@ import {
   AudioMutedOutlined,
   AudioOutlined,
   VideoCameraOutlined,
-  CloseSquareOutlined
+  CloseSquareOutlined,
+  ArrowsAltOutlined,
+  ShrinkOutlined
 } from "@ant-design/icons";
 import { setEnabled } from "userMedia/mediaStream";
 
@@ -12,12 +14,16 @@ interface Props {
   stream: MediaStream | null;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  incrementZoom: () => void;
+  decrementZoom: () => void;
 }
 
 export const ButtonArea: FC<Props> = ({
   stream,
   audioEnabled,
-  videoEnabled
+  videoEnabled,
+  incrementZoom,
+  decrementZoom
 }) => {
   return (
     <div className="Buttons">
@@ -63,6 +69,22 @@ export const ButtonArea: FC<Props> = ({
           onClick={() => stream && setEnabled("audio", true, stream)}
         />
       )}
+      <Button
+        type="primary"
+        className="Button"
+        shape="round"
+        icon={<ArrowsAltOutlined />}
+        size="large"
+        onClick={incrementZoom}
+      />
+      <Button
+        type="primary"
+        className="Button"
+        shape="round"
+        icon={<ShrinkOutlined />}
+        size="large"
+        onClick={decrementZoom}
+      />
     </div>
   );
 };

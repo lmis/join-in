@@ -26,7 +26,7 @@ export const audioDistanceSettings = {
 export const scaleConfig = {
   defaultScale: 0.7,
   minScale: 0.535,
-  increment: 0.02,
+  stepSize: 0.02,
   speedFactor: 4500
 };
 

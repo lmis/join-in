@@ -4,7 +4,8 @@ import { ButtonArea } from "ButtonArea";
 import { GameArea } from "GameArea";
 import { useRemoteConnection } from "connection";
 import { useMovement } from "physics/useMovement";
-import { useZoom, useMovementControl } from "controls/keypress";
+import { useZoom } from "controls/useZoom";
+import { useKeyDown, useMovementControl } from "controls/keypress";
 import {
   scaleConfig,
   movementConfig,
@@ -18,7 +19,9 @@ import "./styles.css";
 const userMediaConstraints = { audio: true, video: true };
 
 export default function App() {
-  const restScale = useZoom(scaleConfig);
+  const { scale: restScale, increment, decrement } = useZoom(scaleConfig);
+  useKeyDown("+", increment);
+  useKeyDown("-", decrement);
   const { stream, error, audioEnabled, videoEnabled } = useUserMedia(
     userMediaConstraints
   );
@@ -84,6 +87,8 @@ export default function App() {
               stream={stream}
               audioEnabled={audioEnabled}
               videoEnabled={videoEnabled}
+              incrementZoom={increment}
+              decrementZoom={decrement}
             />
           </div>
         </>

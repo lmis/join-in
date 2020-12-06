@@ -275,15 +275,13 @@ export const GameArea: FC<Props> = ({
   useAnimation(draw);
 
   return (
-    <>
-      <canvas
-        ref={canvasRef}
-        className="Canvas"
-        width={canvasWidth.toString()}
-        height={canvasHeight.toString()}
-      >
-        Your browser does not support the HTML5 canvas tag.
-      </canvas>
-    </>
+    <canvas
+      ref={canvasRef}
+      className="Canvas"
+      width={canvasWidth.toString()}
+      height={canvasHeight.toString()}
+    >
+      Your browser does not support the HTML5 canvas tag.
+    </canvas>
   );
 };
