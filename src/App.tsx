@@ -80,13 +80,11 @@ export default function App() {
               movement={movement}
               others={users}
             />
-            {stream && (
-              <ButtonArea
-                stream={stream}
-                audioEnabled={audioEnabled}
-                videoEnabled={videoEnabled}
-              />
-            )}
+            <ButtonArea
+              stream={stream}
+              audioEnabled={audioEnabled}
+              videoEnabled={videoEnabled}
+            />
           </div>
         </>
       )}

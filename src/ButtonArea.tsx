@@ -9,7 +9,7 @@ import {
 import { setEnabled } from "userMedia/mediaStream";
 
 interface Props {
-  stream: MediaStream;
+  stream: MediaStream | null;
   audioEnabled: boolean;
   videoEnabled: boolean;
 }
@@ -28,7 +28,8 @@ export const ButtonArea: FC<Props> = ({
           shape="round"
           icon={<CloseSquareOutlined />}
           size="large"
-          onClick={() => setEnabled("video", false, stream)}
+          disabled={!stream}
+          onClick={() => stream && setEnabled("video", false, stream)}
         />
       ) : (
         <Button
@@ -37,7 +38,8 @@ export const ButtonArea: FC<Props> = ({
           shape="round"
           icon={<VideoCameraOutlined />}
           size="large"
-          onClick={() => setEnabled("video", true, stream)}
+          disabled={!stream}
+          onClick={() => stream && setEnabled("video", true, stream)}
         />
       )}
       {audioEnabled ? (
@@ -47,7 +49,8 @@ export const ButtonArea: FC<Props> = ({
           shape="round"
           icon={<AudioMutedOutlined />}
           size="large"
-          onClick={() => setEnabled("audio", false, stream)}
+          disabled={!stream}
+          onClick={() => stream && setEnabled("audio", false, stream)}
         />
       ) : (
         <Button
@@ -56,7 +59,8 @@ export const ButtonArea: FC<Props> = ({
           shape="round"
           icon={<AudioOutlined />}
           size="large"
-          onClick={() => setEnabled("audio", true, stream)}
+          disabled={!stream}
+          onClick={() => stream && setEnabled("audio", true, stream)}
         />
       )}
     </div>
